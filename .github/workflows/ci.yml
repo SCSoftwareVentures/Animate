@@ -1,0 +1,36 @@
+name: ANIMATE v0.7 engineering tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate publish scope and repository hygiene
+        run: python tests/check_release.py
+      - name: Check JavaScript syntax
+        run: node --check site/core.js && node --check site/foreground.js && node --check site/hand_ml.js && node --check site/app.js
+      - name: Run core regression suite
+        run: node tests/test_core.js && node tests/test_foreground.js && node tests/test_hand_ml.js
+      - name: Synthetic recognition diagnostic (informational; not a real-device pass gate)
+        run: node tests/recognition_matrix.js --summary
+      - name: Install browser test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check playwright numpy
+          python -m playwright install --with-deps chromium
+      - name: Run offline browser regression suite
+        run: python tests/offline_browser.py && python tests/test_hand_browser.py
+      - name: Run synthetic camera browser suite over localhost
+        run: python tests/e2e.py

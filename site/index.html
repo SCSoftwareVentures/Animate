@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>ANIMATE v0.7 — Camera feasibility experiment</title>
+  <link rel="stylesheet" href="styles.css?v=0.7.0">
+  <script src="core.js?v=0.7.0" defer></script>
+  <script src="foreground.js?v=0.7.0" defer></script>
+  <script src="hand_ml.js?v=0.7.0" defer></script>
+  <script src="app.js?v=0.7.0" defer></script>
+</head>
+<body>
+<main>
+  <header>
+    <div class="tag">ANIMATE / FEASIBILITY EXPERIMENT / v0.7</div>
+    <h1>Make ordinary<br>objects play.</h1>
+    <p class="muted">Three experimental ways to control a simple on-screen activity. Hand ML only detects hand landmarks, not household object identity. Not a finished product.</p>
+  </header>
+  <section id="intro" aria-labelledby="introHeading">
+    <h2 id="introHeading">Before you begin</h2>
+    <p>The camera is processed on this device. Video frames are analysed locally, including in the optional ML method. Model and runtime files are retrieved from the same website if installed; video frames are not uploaded. Test events are saved locally until you delete them or your browser clears storage. A voluntary export creates a JSON report you choose whether to share.</p>
+    <p><strong>Research operator:</strong> Sammy Chehade. <strong>Contact and withdrawal:</strong> reply to the person who shared this test using the same channel and provide the record ID; they must forward your request to the operator. Deleting a local record does not delete copies already exported or sent.</p>
+    <p><strong>Privacy:</strong> exports are pseudonymous, <em>not anonymous</em>. A report contains a random ID, coarse device category, your chosen role, test events, optional feedback and timestamps. If you send it using email or messaging, its recipient may associate it with you. Do not include names, contact details or sensitive information in the feedback. <strong>Provisional retention:</strong> the operator must delete received research exports within 30 days after the pilot ends. This policy requires operator confirmation before public recruitment.</p>
+    <label for="role">Your intended use</label>
+    <select id="role"><option value="">Choose one</option><option>Game creator</option><option>Content creator</option><option>Parent / family</option><option>Educator</option><option>Developer</option><option>Other</option></select>
+    <label class="inline"><input type="checkbox" id="adult"> I am 18 or older and am taking part as an adult.</label>
+    <label class="inline"><input type="checkbox" id="consent"> I understand the limitations and agree to save pseudonymous test events on this device.</label>
+    <div class="actions"><button id="enter" class="primary">Start experiment</button></div>
+    <p id="introerr" class="fine error" role="alert"></p>
+  </section>
+  <section id="lab" hidden aria-labelledby="labHeading">
+    <div class="split"><h2 id="labHeading">Explore zone control</h2><small id="inputLabel">Not started</small></div>
+    <p class="fine muted">These are three presentations of the same three-zone interaction—not three validated products.</p>
+    <div class="modes" role="group" aria-label="Demonstration mode">
+      <button data-mode="play">Play</button>
+      <button data-mode="create">Create</button>
+      <button data-mode="learn" class="selected">Learn</button>
+    </div>
+    <p id="description"></p>
+    <label for="detector">Experimental tracking method</label>
+    <select id="detector"><option value="colour">Calibrated colour (v0.4 baseline)</option><option value="foreground">Background difference (requires stationary camera)</option><option value="hand">Local ML: one hand / index fingertip (assets required)</option></select>
+    <p class="fine muted">Background difference can track an object of any colour but may also track hands, shadows and other moving things. Keep the phone fixed. This is not AI recognition. The optional ML method is hand-landmark recognition, not object recognition; it requires reviewed same-origin model assets.</p>
+    <div class="actions"><button id="captureBackground" hidden disabled>Capture empty background (12 fresh frames)</button></div>
+    <div class="actions"><button id="camera" class="primary">Enable camera</button><button id="sample">Try touch fallback</button><button id="stop" disabled>Stop camera</button></div>
+    <label class="inline"><input id="front" type="checkbox"> Front camera (mirrored)</label>
+    <div class="stage">
+      <video id="video" autoplay playsinline muted aria-hidden="true"></video>
+      <canvas id="view" width="320" height="240" aria-label="Camera preview and three visual zones"></canvas>
+    </div>
+    <p id="targetText" class="target-text" aria-live="polite">Target: none</p>
+    <div id="effect" class="effect" role="status">Ready to experiment.</div>
+    <div id="status" class="status" role="status">Choose camera or touch fallback.</div>
+    <div class="actions"><button id="start" class="primary" disabled>Start / retry challenge</button><button id="calibrate" disabled>Recalibrate</button><button id="tapLeft" hidden>Left zone</button><button id="tapMiddle" hidden>Middle zone</button><button id="tapRight" hidden>Right zone</button></div>
+    <div class="split"><div id="score" class="big">0 / 3</div><small id="clock">—</small></div>
+    <div class="bar" role="progressbar" aria-label="Challenge progress" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0" id="progressBar"><span id="progress"></span></div>
+    <p class="fine muted">Camera completion is an engineering signal, not evidence of commercial demand. The touch fallback is excluded from camera metrics.</p>
+  </section>
+  <section id="benchmarkPanel" hidden aria-labelledby="benchmarkHeading">
+    <h2 id="benchmarkHeading">Camera recognition benchmark</h2>
+    <p class="fine muted">Researcher-only self-labelled diagnostic. This is not an accuracy certificate. The tool stores counts and timing, never video frames. Benchmark mode is accessible to anyone with the URL.</p>
+    <p class="fine">Use <code>?benchmark=1</code> in Safari after HTTPS deployment. Calibrate the selected tracker first. Compare camera methods on separately documented, appropriate tasks. Hand ML is not an object-tracking comparator and must not be pooled with object results. For an absent-object trial, move the object completely out of view <em>after calibration</em>. Hold each condition steady until 600 fresh analysed frames have been counted. This measures an operator-labelled detection proxy, not bounding-box accuracy or true object identity.</p>
+    <div class="probe-grid">
+      <label>Object colour<select id="benchColour"><option value="blue">Blue</option><option value="green">Green</option><option value="red">Red</option><option value="other">Other</option></select></label>
+      <label>Lighting<select id="benchLight"><option value="normal">Normal</option><option value="bright">Bright</option><option value="dim">Dim</option></select></label>
+      <label>Background<select id="benchBackground"><option value="plain">Plain</option><option value="cluttered">Cluttered</option></select></label>
+      <label>Manual ground-truth label<select id="benchExpected"><option value="present">Object present</option><option value="absent">Object absent</option></select></label>
+    </div>
+    <div class="actions"><button id="benchStart">Start 600-frame sample</button><button id="benchCancel" disabled>Cancel sample</button></div>
+    <p id="benchStatus" class="fine" role="status">Enable camera and calibrate before sampling.</p>
+    <pre id="benchResults">No completed samples.</pre>
+  </section>
+  <section id="feedbackPanel" hidden aria-labelledby="feedbackHeading">
+    <h2 id="feedbackHeading">What problem would this solve?</h2>
+    <p>What do you use today for this activity, and how much time does it take? If it solves no real problem, say so. This is not an offer to purchase.</p>
+    <label for="problem">Optional response (max 240 characters; no personal information)</label>
+    <textarea id="problem" maxlength="240" rows="3" placeholder="My current alternative is ..."></textarea>
+    <div class="actions"><button id="saveProblem">Save feedback locally</button></div>
+    <p id="feedbackStatus" class="fine muted" role="status"></p>
+  </section>
+  <section id="results" hidden aria-labelledby="resultsHeading">
+    <h2 id="resultsHeading">Your test record</h2>
+    <p class="muted">Nothing is transmitted automatically. You can export the JSON and choose whether to send it to the person who invited you. Exported information may identify you to its recipient.</p>
+    <p id="participantId" class="fine code"></p>
+    <div class="actions"><button id="share">Share test link</button><button id="export" class="primary">Export test record</button><button id="reset">Delete local record</button></div>
+    <p id="recordStatus" class="fine muted" role="status"></p>
+  </section>
+  <details id="dbgbox" hidden><summary>Diagnostics (?debug=1)</summary><pre id="dbg"></pre><button id="dbgcopy">Copy diagnostics</button></details>
+  <details><summary>Researcher tools — local only</summary>
+    <section>
+      <h2>Aggregate participant reports</h2>
+      <p class="fine muted">Import JSON reports. For ledger-matched counts, also import a separate private CSV with columns <code>id,sessionDate,device</code>. Ledger rows are not uploaded or stored. Participant files are editable; matching is not cryptographic authenticity.</p>
+      <label for="aggregate">Participant JSON exports</label><input id="aggregate" type="file" accept=".json,application/json" multiple>
+      <label for="ledger">Private ledger CSV (optional)</label><input id="ledger" type="file" accept=".csv,text/csv">
+      <pre id="aggregateOutput">No records imported.</pre>
+    </section>
+  </details>
+  <footer class="fine muted">ANIMATE v0.7.0 · Experimental colour, foreground and optional locally hosted hand ML trackers · No commercial release claims · No automatic uploads · Local storage can be cleared by browsers. Do not recruit participants until operator contact/retention and privacy text are confirmed.</footer>
+</main>
+</body>
+</html>

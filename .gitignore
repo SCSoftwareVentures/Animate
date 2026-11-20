@@ -1,4 +1,4 @@
-# Keep all participant and private research records outside GitHub
+# Research participants and local experiments must not enter a source repository.
 *.csv
 *.json
 *.jsonl
@@ -18,3 +18,4 @@ __pycache__/
 node_modules/
 playwright-report/
 test-results/
+.Docker/
