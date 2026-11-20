@@ -1,0 +1,20 @@
+# Keep all participant and private research records outside GitHub
+*.csv
+*.json
+*.jsonl
+*.ndjson
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.log
+*.zip
+.env
+.env.*
+.DS_Store
+__pycache__/
+*.pyc
+node_modules/
+playwright-report/
+test-results/
