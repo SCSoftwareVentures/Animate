@@ -561,7 +561,7 @@ function updateDiagnostics(fps = 0, renderFps = 0) {
   const settings = track?.getSettings?.() || {};
   $('dbgbox').hidden = false;
   const now = performance.now();
-  $('dbg').textContent = JSON.stringify({
+  $('diagnosticOutput').textContent = JSON.stringify({
     build: C.BUILD, userAgent: navigator.userAgent,
     analysedFps: +fps.toFixed(1), renderFps: +renderFps.toFixed(1), locateMsAvg: detectionCount ? +(detectionMs / detectionCount).toFixed(2) : null,
     video: [$('video').videoWidth, $('video').videoHeight],
@@ -686,7 +686,7 @@ $('ledger').addEventListener('change', async event => {
   showAggregate();
 });
 $('dbgcopy').addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText($('dbg').textContent); $('dbgcopy').textContent = 'Copied'; }
+  try { await navigator.clipboard.writeText($('diagnosticOutput').textContent); $('dbgcopy').textContent = 'Copied'; }
   catch (_) { $('dbgcopy').textContent = 'Copy unavailable: select text manually'; }
 });
 window.addEventListener('error', e => { lastError = String(e.message); updateDiagnostics(); });

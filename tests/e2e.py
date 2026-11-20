@@ -8,11 +8,20 @@ HERE = Path(__file__).parent
 SITE = HERE.parent / 'site'
 with tempfile.TemporaryDirectory() as vids:
     subprocess.run([sys.executable, str(HERE/'make_video.py'), vids], check=True)
+    csp_probe_path = '/core.js?cross-origin-csp-probe'
+    csp_probe_requests = []
+
     class Handler(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == csp_probe_path:
+                csp_probe_requests.append(self.path)
+            super().do_GET()
+
         def log_message(self, *args): pass
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Handler, directory=str(SITE)))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     URL = f'http://localhost:{srv.server_address[1]}/index.html'
+    csp_probe_url = f'http://127.0.0.1:{srv.server_address[1]}{csp_probe_path}'
     exe = sys.argv[1] if len(sys.argv) > 1 else None
     results = []
 
@@ -24,7 +33,7 @@ with tempfile.TemporaryDirectory() as vids:
         browser = p.chromium.launch(executable_path=exe, args=['--no-sandbox', '--use-fake-device-for-media-stream',
                              '--use-fake-ui-for-media-stream', f'--use-file-for-fake-video-capture={vids}/{video}'])
         context = browser.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True,
-                                      permissions=['camera'], accept_downloads=True)
+                                      device_scale_factor=3, permissions=['camera'], accept_downloads=True)
         page = context.new_page()
         errors, csp = [], []
         page.on('pageerror', lambda error: errors.append(str(error)))
@@ -36,8 +45,7 @@ with tempfile.TemporaryDirectory() as vids:
         page.click('#camera')
         expect(page.locator('#inputLabel')).to_have_text('Live camera', timeout=10000)
         time.sleep(1)
-        box = page.locator('#view').bounding_box()
-        page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
+        page.locator('#view').click()
         expect(page.locator('#start')).to_be_enabled(timeout=5000)
         t0 = time.time(); page.click('#start'); done = None
         while time.time() - t0 < wait:
@@ -69,8 +77,20 @@ with tempfile.TemporaryDirectory() as vids:
             pg.reload(); pg.wait_for_selector('#lab:not([hidden])', timeout=5000)
             check('record survives reload with same participant ID',
                   pg.evaluate("JSON.parse(localStorage.getItem('animate-validation-v07')).id") == rec['id'])
-            check('browser CSP blocks external requests',
-                  pg.evaluate("document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]').content.includes(\"connect-src 'self'\")"))
+            policy = pg.evaluate('''async url => {
+                const violation = new Promise(resolve => {
+                    document.addEventListener('securitypolicyviolation', event => {
+                        if (event.blockedURI === url) resolve(event.effectiveDirective);
+                    });
+                    setTimeout(() => resolve(null), 1500);
+                });
+                const local = await fetch('core.js?local-csp-probe');
+                const rejected = await fetch(url).then(() => false, () => true);
+                return { local: local.ok, rejected, directive: await violation };
+            }''', csp_probe_url)
+            check('browser CSP permits same-origin fetches and blocks cross-origin requests',
+                  policy == {'local': True, 'rejected': True, 'directive': 'connect-src'} and not csp_probe_requests,
+                  str(policy))
             c.close(); b.close()
 
             b, c, pg, done, errors, csp = session(p, 'stray.y4m')
@@ -104,11 +124,13 @@ with tempfile.TemporaryDirectory() as vids:
                   'exportedAt' in exported and exported['build'] == '0.7.0' and exported['id'])
             pg.locator('summary:has-text("Researcher")').click()
             pg.locator('#aggregate').set_input_files(path)
+            pg.wait_for_function("document.querySelector('#aggregateOutput').textContent.trim().startsWith('{')")
             summary = json.loads(pg.locator('#aggregateOutput').inner_text())
             check('touch-only run is not a camera success',
                   summary['provisional']['cameraTesters'] == 0 and summary['verified']['first'] == 0)
             ledger = 'id,sessionDate,device\n' + exported['id'] + ',' + exported['createdDay'] + ',' + exported['device'] + '\n'
             pg.locator('#ledger').set_input_files({'name':'private.csv', 'mimeType':'text/csv','buffer':ledger.encode()})
+            expect(pg.locator('#aggregateOutput')).to_contain_text('"ledgerMatches": 1')
             summary = json.loads(pg.locator('#aggregateOutput').inner_text())
             check('private ledger reconciles participant ID/date/device', summary['ledgerMatches'] == 1)
             check('no page errors in export / import / ledger workflow', not errors, str(errors))

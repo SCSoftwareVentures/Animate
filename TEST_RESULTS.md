@@ -1,4 +1,6 @@
-# ANIMATE v0.7 engineering verification — 21 Nov 2026
+# ANIMATE v0.7 pre-import verification — 21 Nov 2026
+
+These are the package author's original results. [Draft PR #1](https://github.com/SCSoftwareVentures/Animate/pull/1) records the subsequent repository import and CI verification.
 
 ## Reproduced locally in the isolated container
 

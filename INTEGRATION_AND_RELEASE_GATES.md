@@ -2,9 +2,9 @@
 
 Status: **engineering only; not approved for publication, recruitment or sale.**
 
-## Import the vetted v0.7 source
+## Source import and review
 
-The new repository currently contains only its initial README; the engineering source is supplied in the ANIMATE v0.7 ZIP in the ChatGPT conversation. **The source code is not yet committed to this repository.** Import the archive's contents, not the archive itself, to `engineering/animate-v07-hardening` and preserve its `.github/workflows/`, `site/`, `tests/`, and `tools/` directories.
+The v0.7 source from the engineering handoff is on `engineering/animate-v07-hardening` in draft PR #1. The import preserves `.github/workflows/`, `site/`, `tests/`, `tools/`, and the public-repository exclusions. Current CI evidence lives in the draft PR.
 
 Never add participant exports, research ledgers, individual contact information, model downloads with unresolved redistribution rights, credentials or generated databases to this public repository. The .gitignore is defence in depth, not a substitute for an independent diff and repository-history review.
 
@@ -20,8 +20,8 @@ Never add participant exports, research ledgers, individual contact information,
 
 ## Hard release blocks
 
-- The optional real MediaPipe runtime/model **are not vendored or proven**. Mocked hand landmarks are not trained-model inference.
-- Model-weight provenance, exact-version SHA-256 and redistribution rights require review.
+- The optional MediaPipe runtime and model are absent from the checkout. See [the asset review](HAND_ML_ASSET_GATE.md) for independently checked digests, licensing evidence, and runtime findings.
+- Review attribution, redistribution terms, and the exact runtime used in the app before bundling it.
 - `python tests/check_release.py --publish` **must fail** while assets are missing; the build is not publishable.
 - Real iPhone Safari camera, thermal/performance, accessibility, false-completion and consent testing have not been performed.
 - Only the owner can approve public deployment or participant recruitment.

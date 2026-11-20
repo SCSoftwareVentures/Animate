@@ -2,9 +2,7 @@
 
 **Status: not approved for public deployment or participant recruitment.**
 
-# ANIMATE v0.7.0 — local hand-ML integration candidate
-
-**Status: engineer-facing research package, NOT a deployed or fully functioning AI product.** The v0.6 application offers three intentionally distinct tracking implementations:
+ANIMATE v0.7.0 is an engineering candidate with three tracking implementations:
 
 1. **Colour (baseline):** HSV connected-component tracking of a calibrated, sufficiently saturated object. Not an ML model.
 2. **Foreground (baseline):** stationary-camera difference tracking after collecting an empty background. Not an ML model and not object identity.
@@ -16,7 +14,7 @@ The environment used to create this package could not retrieve external binary a
 
 - `site/hand_ml.js`: local ESM runtime loader for MediaPipe Tasks Vision 1.2.3 and the official float16 Hand Landmarker model v1, index-fingertip extraction, bounded inference frequency, non-monotonic timestamp rejection, multi-hand fail-closed, stop/cancellation, and local-only diagnostics.
 - `site/app.js`: hand mode wired into camera lifecycle, frame age and interruption gate, three-zone task scoring, independent `detector=hand` and `model` evidence labels. Touch results are never camera completions.
-- `site/core.js`: new build 0.6.0/schema 5, requires linked model provenance in hand results, and reports each tracker separately. Pseudonymous exported JSON is editable, **not** cryptographic proof of use.
+- `site/core.js`: build 0.7.0/schema 5, requires linked model provenance in hand results, and reports each tracker separately. Pseudonymous exported JSON is editable, **not** cryptographic proof of use.
 - `site/index.html`: camera disclosure and a CSP allowing same-origin model/WASM fetch and `wasm-unsafe-eval` without arbitrary external domains. Real iOS Safari CSP/runtime compatibility is still unverified.
 - `tools/vendor_hand_model.py`: optional operator-controlled asset-acquisition workflow with exact npm version, separately reviewed model SHA-256 requirement, redistribution-review attestation, local copying and SHA-256 manifest. This script was **not executed** here.
 - `tests/check_release.py`: refuses publication while reviewed ML assets are absent, or if present assets fail manifest verification. Detects unexpected published files and tracked sensitive research material.
@@ -35,27 +33,23 @@ python tests/test_hand_browser.py
 python tests/e2e.py /usr/bin/chromium
 ```
 
-See `TEST_RESULTS.md` for exact results and caveats. The `publish.yml` job now uses `python tests/check_release.py --publish` and is manual-only from `main` (GitHub Actions itself has not run here).
+`TEST_RESULTS.md` records the package author's pre-import results. See [draft PR #1](https://github.com/SCSoftwareVentures/Animate/pull/1) for current verification. `publish.yml` is manual-only from `main` and runs `python tests/check_release.py --publish` before publishing.
 
 ## Completing real ML in Codex or another controlled cloud engineering task
 
 1. Inspect `HAND_ML_ASSET_GATE.md` and conduct an independent review of both the npm runtime and model-weights redistribution terms; record findings. Do **not** assume the runtime's Apache licence covers the separate model bundle.
 2. In a network-enabled engineering environment, run `python tools/vendor_hand_model.py --probe-model-hash`; compare the result against trusted provenance, not merely the same file downloaded twice.
-3. Only once the model rights and a trusted model checksum are approved, run `python tools/vendor_hand_model.py --install --expected-model-sha256 <REVIEWED_SHA256> --license-reviewed`.
+3. Complete asset and notice review before running the installer. The pinned npm tarball lacks the license text that the installer requires. See [the asset review](HAND_ML_ASSET_GATE.md) for the current blockers.
 4. Inspect `site/vendor/mediapipe/SHA256SUMS.txt` and `PROVENANCE.txt`, run `python tests/check_release.py --publish` and all the tests, including GitHub full-origin CI. Check the pinned model and WASM file paths against actual package layout.
 5. On a real iPhone using Safari over HTTPS, test fresh-load, latency, 3 scene/lighting conditions, multiple hands, camera permission and interruptions, storage, and battery heat. Compare *hand-control reliability* against touch, not against object classification.
-6. Open a reviewable pull request. **Do not merge, deploy, recruit participants or charge customers** without owner approval and successful gates.
+6. Record evidence in draft PR #1. **Do not merge, deploy, recruit participants or charge customers** without owner approval and successful gates.
 
 ## Scope and risk
 
-- Never ask participants to upload raw camera video; the page keeps video processing on-device. Downloading the runtime/model from the same static host is necessary, but the app does not send frames or telemetry.
-- No current evidence of actual iPhone FPS, model loading, hand detection precision, stability or meaningful consumer demand.
+- Camera processing stays on-device. In the Chromium probe the CSP blocked the runtime's attempts to send telemetry to Google. See [the asset review](HAND_ML_ASSET_GATE.md).
+- Real iPhone runtime loading, throughput, accuracy, stability and user demand remain unmeasured.
 - The `Learn`, `Play`, and `Create` presentations still share the same zone task and are not validated distinct products.
 - The proposed privacy text and retention promise still need operator confirmation and any appropriate legal review before recruitment.
-- Unrelated GitHub repositories were not accessed or edited, and no GitHub workflow was triggered or published during this change.
-
-**Bottom line:** v0.6 delivers an ML adapter and guarded integration, *not* a pretrained model, completed ML inference on iPhone, or a sale-ready product.
-
 
 ## v0.7 safety corrections
 
@@ -63,4 +57,4 @@ See `TEST_RESULTS.md` for exact results and caveats. The `publish.yml` job now u
 - Repeated model startup closes the previous WASM engine rather than leaking it.
 - Muted, interrupted, or stale camera frames invalidate **all** calibrations and disable challenge scoring until explicit re-calibration or restart.
 - Tests cover loader-timeout and delayed-completion races.
-- The repository upload and GitHub Actions verification remain independent gates.
+- Source import and GitHub Actions verification are tracked in draft PR #1.

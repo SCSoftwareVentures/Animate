@@ -92,6 +92,9 @@ def record(page):
 # Hand-ML integration is tested using fake landmark results, NOT actual model inference.
 with sync_playwright() as p:
     b,c,pg,errs=prepare(p,camera=True,hand_mock=True)
+    # MediaPipe 1.2.3 uses `dbg` as a global callback in its WASM loader.
+    check('diagnostics leave the MediaPipe debug callback name free',
+          pg.evaluate("typeof window.dbg === 'undefined'"))
     enrol(pg)
     pg.select_option('#detector','hand')
     pg.click('#camera')
@@ -149,11 +152,22 @@ with sync_playwright() as p:
     pg.evaluate('calibrateAt(.5,.5)')
     check('control camera scene can calibrate before interruption',
           pg.evaluate('!!reference') and pg.locator('#start').is_enabled())
-    pg.evaluate("markInterrupted('Synthetic interruption')")
+    interrupted_state = pg.evaluate("""() => {
+      markInterrupted('Synthetic interruption');
+      startChallenge();
+      return { noRun: run === null, referenceCleared: reference === null, calibrating, interrupted,
+        startDisabled: document.querySelector('#start').disabled };
+    }""")
     check('interruption invalidates colour reference and disables scoring',
-          pg.evaluate('reference === null && calibrating && interrupted') and pg.locator('#start').is_disabled())
-    pg.evaluate('startChallenge()')
-    check('interrupted session cannot launch a challenge',pg.evaluate('run === null'))
+          all(interrupted_state.values()), str(interrupted_state))
+    pg.wait_for_function('!interrupted && !stale')
+    resumed_state = pg.evaluate("""() => {
+      startChallenge();
+      return { noRun: run === null, referenceCleared: reference === null, calibrating,
+        startDisabled: document.querySelector('#start').disabled };
+    }""")
+    check('resumed session cannot launch a challenge without recalibration',
+          all(resumed_state.values()), str(resumed_state))
     check('colour interruption regression causes no browser errors',not errs,str(errs))
     c.close();b.close()
 
