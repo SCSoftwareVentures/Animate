@@ -25,6 +25,8 @@ jobs:
         run: node --check site/core.js && node --check site/foreground.js && node --check site/hand_ml.js && node --check site/app.js
       - name: Run core regression suite
         run: node tests/test_core.js && node tests/test_foreground.js && node tests/test_hand_ml.js
+      - name: Audit runtime notice gate with malicious/adjacent-release fixtures
+        run: python tests/test_runtime_rights.py
       - name: Synthetic recognition diagnostic (informational; not a real-device pass gate)
         run: node tests/recognition_matrix.js --summary
       - name: Install browser test dependencies
@@ -50,6 +52,9 @@ jobs:
           curl --fail --silent --show-error --location --proto '=https' --max-time 60 \
             --output "$assets_dir/thumb_up.jpg" \
             'https://storage.googleapis.com/mediapipe-assets/tasks/testdata/vision/thumb_up.jpg?generation=1782185354353621'
+          # This reports unresolved legal evidence rather than falsely claiming rights.
+          # --expect-blocked succeeds only when the release gate remains blocked.
+          python tools/audit_runtime_rights.py --runtime-archive "$assets_dir/runtime.tgz" --expect-blocked
           python tools/vendor_hand_model.py --stage-test --site-dir "$assets_dir/site" \
             --runtime-archive "$assets_dir/runtime.tgz" --model-file "$assets_dir/hand_landmarker.task"
           # Both engines consume the same SHA-256 pinned staged assets; no shipping bundle.
