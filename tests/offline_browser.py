@@ -298,6 +298,11 @@ with sync_playwright() as p:
           json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='not_started')
     pg.locator('#view').click(position={'x':145,'y':120})
     pg.click('#deviceBenchStart')
+    pg.click('#start')
+    check('participant challenge cannot begin during an active performance sample',
+          'Finish the 60-second performance sample' in pg.locator('#status').inner_text() and
+          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='running' and
+          not any(e['type']=='start' for e in record(pg)['events']))
     check('packet cannot be discarded while a performance measurement is running',
           pg.locator('#packetReset').is_disabled())
     pg.click('#zoneControlStart')
@@ -320,6 +325,20 @@ with sync_playwright() as p:
           not any(k in report for k in ['userAgent','participantId','id','frameData','lastPosition']) and
           all('ANIMATE_LOCAL_DEVICE_PERFORMANCE_SAMPLE' not in json.dumps(e)
               for e in record(pg)['events']))
+    pg.click('#deviceBenchStart')
+    pg.click('[data-mode="create"]')
+    mode_interrupt=json.loads(pg.locator('#deviceBenchReport').inner_text())
+    check('changing mode interrupts the sample rather than preserving false completeness',
+          mode_interrupt['status']=='interrupted' and not mode_interrupt['complete'] and
+          json.loads(pg.locator('#packetSummary').inner_text())['performanceTrials']==2)
+    pg.click('#deviceBenchStart')
+    pg.click('#calibrate')
+    calibration_interrupt=json.loads(pg.locator('#deviceBenchReport').inner_text())
+    check('recalibrating interrupts active sample and preserves failure denominator',
+          calibration_interrupt['status']=='interrupted' and
+          json.loads(pg.locator('#packetSummary').inner_text())['performanceTrials']==3 and
+          pg.locator('#start').is_disabled())
+    pg.locator('#view').click(position={'x':145,'y':120})
     pg.select_option('#zoneControlExpected','absent')
     pg.click('#zoneControlStart')
     pg.click('#deviceBenchStart')
@@ -346,9 +365,10 @@ with sync_playwright() as p:
           evidence_packet['schema']=='ANIMATE_IPHONE_OPERATOR_PACKET_V1' and
           evidence_packet['sourceCommit']=='a'*40 and
           evidence_packet['detector']=='colour' and
-          len(evidence_packet['performanceTrials'])==1 and
+          len(evidence_packet['performanceTrials'])==3 and
           len(evidence_packet['zoneTrials'])==1 and
-          evidence_packet['performanceTrials'][0]['report']['status']=='manual' and
+          [r['report']['status'] for r in evidence_packet['performanceTrials']] ==
+              ['manual','interrupted','interrupted'] and
           evidence_packet['zoneTrials'][0]['report']['status']=='manual' and
           'userAgent' not in json.dumps(evidence_packet) and
           'participantId' not in json.dumps(evidence_packet))
@@ -366,6 +386,25 @@ with sync_playwright() as p:
           pg.locator('#packetExport').is_disabled() and
           json.loads(pg.locator('#packetSummary').inner_text())['integrityOk'] is True)
     check('debug device sampling and negative controls have no JavaScript errors',not errs,str(errs))
+    c.close();b.close()
+
+
+    # When foreground background capture is restarted mid-performance sample,
+    # the attempt must be interrupted rather than silently included as clean data.
+    b,c,pg,errs=prepare(p,camera=True,debug=True)
+    enrol(pg)
+    pg.select_option('#detector','foreground')
+    pg.click('#camera');pg.wait_for_timeout(400)
+    pg.click('#captureBackground')
+    pg.wait_for_function('foreground.ready',timeout=5000)
+    pg.click('#deviceBenchStart')
+    check('foreground camera can start performance measurement after background capture',
+          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='running')
+    pg.click('#captureBackground')
+    check('foreground recapture interrupts the live performance attempt',
+          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='interrupted' and
+          not json.loads(pg.locator('#deviceBenchReport').inner_text())['complete'])
+    check('foreground scene-recapture isolation does not cause browser errors',not errs,str(errs))
     c.close();b.close()
 
 bad=[name for name, ok in checks if not ok]

@@ -148,6 +148,9 @@ function resetChallenge() {
   updateTarget();
 }
 function chooseMode(next) {
+  // Changing presentation mode violates a registered stationary-scene sample.
+  // Preserve the attempt as an interruption rather than masking the change.
+  interruptDevicePerformance('Activity mode changed during a performance sample.');
   if (zoneControl.active()) {
     zoneControl.finish(performance.now(), 'interrupted');
     refreshZoneControl();
@@ -508,6 +511,10 @@ function handleTap(x, y) {
   }
 }
 function startChallenge() {
+  if (deviceBench.active()) {
+    setStatus('Finish the 60-second performance sample before starting a challenge.');
+    return;
+  }
   if (probe.active || zoneControl.active()) {
     setStatus('Finish the operator-only camera diagnostic before starting a challenge.'); return;
   }
@@ -596,8 +603,9 @@ function startProbe() {
     $('benchStatus').textContent = 'Enable a fresh camera feed and calibrate first.';
     return;
   }
-  if (zoneControl.active()) {
-    $('benchStatus').textContent = 'Finish the zone-control trial before starting a benchmark.';
+  if (zoneControl.active() || deviceBench.active()) {
+    $('benchStatus').textContent =
+      'Finish the active control or performance measurement before starting a recognition benchmark.';
     return;
   }
   if (run && !run.done) resetChallenge();
@@ -711,6 +719,14 @@ function refreshZoneControl() {
   recordPacketTrial('zone', summary);
 }
 
+function interruptDevicePerformance(reason) {
+  if (!deviceBench.active()) return false;
+  deviceBench.noteInterruption(performance.now());
+  refreshDeviceBench();
+  refreshPacketSummary(reason + ' Attempt recorded as interrupted; not a completed sample.');
+  return true;
+}
+
 function refreshDeviceBench() {
   if (!DEBUG) return;
   const summary = deviceBench.snapshot(performance.now());
@@ -787,6 +803,8 @@ $('captureBackground').addEventListener('click', () => {
       !lastFrameAt || performance.now() - lastFrameAt > 1500) {
     setStatus('Wait for live, fresh camera frames before capturing the empty scene.'); return;
   }
+  // Re-learning a background changes conditions mid-sample; preserve failure.
+  interruptDevicePerformance('Foreground reference capture restarted.');
   cancelProbe('Background is being recaptured; benchmark discarded.');
   if (zoneControl.active()) {
     zoneControl.finish(performance.now(), 'interrupted');
@@ -815,6 +833,7 @@ $('calibrate').addEventListener('click', () => {
     zoneControl.finish(performance.now(), 'interrupted');
     refreshZoneControl();
   }
+  interruptDevicePerformance('Colour calibration restarted.');
   reference = null; resetChallenge(); calibrating = true;
   $('start').disabled = true; setStatus('Tap your coloured object in the preview.');
 });
