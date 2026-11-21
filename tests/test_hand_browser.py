@@ -18,7 +18,7 @@ def check(name, ok, context=''):
     checks.append((name, bool(ok)))
     print(('PASS ' if ok else 'FAIL ') + name + ((' ' + context) if context else ''), flush=True)
 
-def prepare(p, camera=False, benchmark=False, hand_mock=False, hand_hang=False):
+def prepare(p, camera=False, benchmark=False, hand_mock=False, hand_hang=False, hand_deferred=False):
     browser_path = os.environ.get('CHROMIUM_PATH') or shutil.which('chromium')
     options = {'executable_path': browser_path} if browser_path else {}
     browser = p.chromium.launch(**options, args=['--no-sandbox',
@@ -83,6 +83,19 @@ def prepare(p, camera=False, benchmark=False, hand_mock=False, hand_hang=False):
             loader: () => new Promise(() => {}), loadTimeoutMs: 45
           });
         }''')
+    if hand_deferred:
+        page.evaluate("""() => {
+          const create = AnimateHandML.createHandDetector;
+          window.modelRequests = [];
+          AnimateHandML.createHandDetector = options => create({...options,
+            loader: () => new Promise(resolve => {
+              const engine = {closed: false, close() { this.closed = true; }, detectForVideo() { return {}; }};
+              modelRequests.push({engine, release: () => resolve(engine)});
+            })
+          });
+          const acquire = navigator.mediaDevices.getUserMedia;
+          navigator.mediaDevices.getUserMedia = async () => (await acquire()).clone();
+        }""")
     page.add_script_tag(content=(SITE/'app.js').read_text())
     return browser, context, page, errors
 
@@ -163,6 +176,43 @@ with sync_playwright() as p:
     check('ML model hang does not create completion evidence',
           not any(e['type']=='complete' for e in record(pg)['events']))
     check('ML model hang causes no unhandled browser errors',not errs,str(errs))
+    c.close();b.close()
+
+with sync_playwright() as p:
+    b,c,pg,errs = prepare(p, camera=True, hand_deferred=True)
+    enrol(pg)
+    pg.select_option('#detector', 'hand')
+    pg.click('#camera')
+    pg.wait_for_function('modelRequests.length === 1')
+    pg.evaluate('window.firstTrack = stream.getVideoTracks()[0]')
+    pg.get_by_role('button', name='Cancel camera start').click()
+    check('operator can stop the camera while hand tracking is loading',
+          pg.evaluate("firstTrack.readyState === 'ended' && stream === null && !hand.ready"))
+
+    pg.click('#camera')
+    pg.wait_for_function('modelRequests.length === 2')
+    pg.evaluate('modelRequests[1].release()')
+    pg.wait_for_function("hand.ready && input === 'camera' && !startInProgress")
+    pg.evaluate('modelRequests[0].release()')
+    pg.wait_for_function('modelRequests[0].engine.closed')
+    check('late cancelled model is closed while the replacement camera and model stay live',
+          pg.evaluate("""hand.ready && !modelRequests[1].engine.closed &&
+            stream.getVideoTracks()[0].readyState === 'live'""") and
+          sum(e['type'] == 'camera_ready' for e in record(pg)['events']) == 1)
+
+    pg.get_by_role('button', name='Stop camera').click()
+    pg.click('#camera')
+    pg.wait_for_function('modelRequests.length === 3')
+    pg.evaluate("""() => {
+      window.hiddenTrack = stream.getVideoTracks()[0];
+      Object.defineProperty(document, 'hidden', {configurable:true, get:()=>true});
+      modelRequests[2].release();
+    }""")
+    pg.wait_for_function('modelRequests[2].engine.closed && !startInProgress')
+    check('model loaded after silent backgrounding releases camera without a new ready event',
+          pg.evaluate("""hiddenTrack.readyState === 'ended' && !hand.ready && !input &&
+            !document.querySelector('#video').srcObject""") and
+          sum(e['type'] == 'camera_ready' for e in record(pg)['events']) == 1 and not errs, str(errs))
     c.close();b.close()
 
 # A camera interruption must not retain a previously valid colour calibration.

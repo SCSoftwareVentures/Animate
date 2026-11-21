@@ -202,6 +202,7 @@ function draw(p) {
   const dpr = view.width / w;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
+  if (!input || (input === 'camera' && (interrupted || stale || document.hidden))) return;
   const video = $('video');
   if (input === 'camera' && video.readyState >= 2) drawCover(video, ctx, w, h);
   else { ctx.fillStyle = '#0c1523'; ctx.fillRect(0, 0, w, h); }
@@ -210,7 +211,6 @@ function draw(p) {
     ctx.strokeRect(w / 2 - 18, h / 2 - 18, 36, 36);
     return;
   }
-  if (!input) return;
   const zoneNames = mode === 'learn' ? ['1/3', '2/3', '3/3'] :
     mode === 'create' ? ['LOW', 'MID', 'HIGH'] : ['A', 'B', 'C'];
   for (let i = 0; i < 3; i++) {
@@ -231,6 +231,12 @@ function draw(p) {
 function grabFrame() {
   ac.clearRect(0, 0, 160, 120);
   drawCover($('video'), ac, 160, 120);
+}
+function clearCameraFrames() {
+  // A hidden page can have no layout and no next animation frame.
+  ctx.resetTransform();
+  ctx.clearRect(0, 0, view.width, view.height);
+  ac.clearRect(0, 0, analysis.width, analysis.height);
 }
 async function preventSleep() {
   // A pending permission/grant may resolve after Stop, pagehide or a new camera session.
@@ -265,6 +271,7 @@ function stopCamera() {
   // finally handler must not unlock the controls of a newer camera attempt.
   startInProgress = false;
   cancelAnimationFrame(rafId); rafId = 0;
+  clearCameraFrames();
   if (stream) {
     for (const track of stream.getTracks()) {
       track.onended = track.onmute = track.onunmute = null;
@@ -285,8 +292,13 @@ function stopCamera() {
   $('inputLabel').textContent = 'Not started';
   $('camera').disabled = false; $('start').disabled = true;
   $('calibrate').disabled = true; $('stop').disabled = true;
+  $('stop').textContent = 'Stop camera';
   for (const id of ['tapLeft', 'tapMiddle', 'tapRight']) $(id).hidden = true;
   updateTarget();
+}
+function stopForBackground() {
+  if (stream || startInProgress) setStatus('Camera paused in the background. Enable it again when visible.');
+  stopCamera();
 }
 function cameraFailure(message, error) {
   if (zoneControl.active()) {
@@ -299,7 +311,6 @@ function cameraFailure(message, error) {
   lastError = (error || '') + ' ' + message;
   log('camera_error', { reason: message, name: error || null });
   setStatus(message);
-  draw(null);
 }
 function beginFrameWatch(video) {
   const generation = frameWatcherGeneration;
@@ -322,7 +333,9 @@ function markInterrupted(message) {
   cancelProbe('Camera interrupted: unfinished sample discarded.');
   interrupted = true;
   stale = true;
+  lastFrameAt = 0;
   lastPosition = null;
+  clearCameraFrames();
   // Any interruption invalidates ALL camera calibrations; require deliberate re-arm.
   // Otherwise a resumed frame could count against stale reference/background data.
   reference = null;
@@ -340,8 +353,7 @@ function onCameraLoop() {
   // Some browsers throttle visibility events while transitioning to the
   // background. Never continue analysing frames from a hidden document.
   if (document.hidden) {
-    stopCamera();
-    setStatus('Camera paused on page background. Enable it again when visible.');
+    stopForBackground();
     return;
   }
   const video = $('video');
@@ -442,6 +454,9 @@ async function startCamera() {
     return;
   }
   startInProgress = true; $('camera').disabled = true;
+  $('stop').textContent = 'Cancel camera start';
+  $('stop').disabled = false;
+  setStatus('Waiting for camera access.');
   const front = $('front').checked;
   const generation = frameWatcherGeneration;
   try {
@@ -450,46 +465,39 @@ async function startCamera() {
     });
     if (generation !== frameWatcherGeneration || document.hidden) {
       acquired.getTracks().forEach(track => track.stop());
-      if (generation === frameWatcherGeneration) stopCamera();
+      if (generation === frameWatcherGeneration) stopForBackground();
       return;
     }
     stream = acquired;
     const video = $('video'); video.srcObject = stream;
+    setStatus('Starting camera preview.');
     await video.play();
-    // stopCamera may run while the play() promise is pending (pagehide/visibility/user stop).
-    if (generation !== frameWatcherGeneration || stream !== acquired || document.hidden) {
-      acquired.getTracks().forEach(track => track.stop());
-      if (video.srcObject === acquired) video.srcObject = null;
-      if (generation === frameWatcherGeneration && document.hidden) stopCamera();
-      return;
-    }
-    input = 'camera'; mirror = front; calibrating = detectorKind === 'colour';
-    if (detectorKind === 'hand') {
+    // Once attached, the stream belongs to stopCamera(). Obsolete callbacks
+    // must leave a replacement stream, model and controls alone.
+    if (generation !== frameWatcherGeneration || stream !== acquired) return;
+    if (detectorKind === 'hand' && !document.hidden) {
       setStatus('Loading self-hosted hand landmark model (no remote inference)...');
-      if (!await hand.start()) throw Error('Hand model loading was cancelled');
-      if (generation !== frameWatcherGeneration || stream !== acquired) { hand.stop(); return; }
+      const ready = await hand.start();
+      if (generation !== frameWatcherGeneration || stream !== acquired) return;
+      if (!ready) throw Error('Hand model loading was cancelled');
     }
+    if (document.hidden) { stopForBackground(); return; }
+    input = 'camera'; mirror = front; calibrating = detectorKind === 'colour';
     $('captureBackground').hidden = detectorKind !== 'foreground';
     $('captureBackground').disabled = detectorKind !== 'foreground';
     lastFrameAt = performance.now(); lastMediaTime = -1;
     for (const track of stream.getVideoTracks()) {
       track.onended = () => cameraFailure('Camera disconnected. Enable it again.');
       track.onmute = () => markInterrupted('Camera interrupted (call, Siri, or another app).');
-      track.onunmute = () => {
-        interrupted = false; stale = false; lastFrameAt = 0; lastPosition = null;
-        reference = null; foreground.reset(); backgroundCapture = false;
-        calibrating = detectorKind === 'colour'; $('start').disabled = true;
-        if (detectorKind === 'hand') hand.stop();
-        tracker.reset(); setStatus(detectorKind === 'colour' ?
-          'Camera resumed. Tap the object to recalibrate after a fresh frame.' :
-          detectorKind === 'hand' ? 'Restart camera to reload the hand model.' :
-          'Camera resumed. Capture a new empty background before testing.');
-      };
+      track.onunmute = () => markInterrupted(detectorKind === 'colour' ?
+        'Camera resumed. Tap the object to recalibrate after a fresh frame.' :
+        detectorKind === 'hand' ? 'Restart camera to reload the hand model.' :
+        'Camera resumed. Capture a new empty background before testing.');
     }
     beginFrameWatch(video);
     preventSleep();
     $('inputLabel').textContent = 'Live camera';
-    $('stop').disabled = false; $('calibrate').disabled = detectorKind === 'hand';
+    $('stop').textContent = 'Stop camera'; $('calibrate').disabled = detectorKind === 'hand';
     setStatus(detectorKind === 'colour' ?
       'Tap the middle of your brightly coloured object in the preview to calibrate.' :
       detectorKind === 'hand' ? 'Hand model loaded. Hold one index finger in view to control zones.' :
@@ -847,9 +855,12 @@ $('captureBackground').addEventListener('click', () => {
   setStatus('Keep all moving objects out of view during empty-background capture.');
 });
 $('camera').addEventListener('click', startCamera);
-$('stop').addEventListener('click', () => { stopCamera(); setStatus('Camera stopped.'); draw(null); });
+$('stop').addEventListener('click', () => {
+  const message = startInProgress ? 'Camera start cancelled.' : 'Camera stopped.';
+  stopCamera();
+  setStatus(message);
+});
 $('sample').addEventListener('click', () => {
-  if (startInProgress) return;
   stopCamera(); input = 'touch';
   $('inputLabel').textContent = 'Touch fallback'; $('start').disabled = false;
   for (const id of ['tapLeft', 'tapMiddle', 'tapRight']) $(id).hidden = false;
@@ -1088,13 +1099,12 @@ $('dbgcopy').addEventListener('click', async () => {
 });
 window.addEventListener('error', e => { lastError = String(e.message); updateDiagnostics(); });
 window.addEventListener('unhandledrejection', e => { lastError = String(e.reason); updateDiagnostics(); });
-window.addEventListener('pagehide', stopCamera);
+window.addEventListener('pagehide', stopForBackground);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && (stream || startInProgress)) {
     // getUserMedia can still be awaiting a permission prompt, before 'stream'
     // exists. Revoke that in-flight generation immediately on backgrounding.
-    stopCamera();
-    setStatus('Camera paused on interruption. Enable again to continue.');
+    stopForBackground();
   }
 });
 window.addEventListener('resize', resizeCanvas);

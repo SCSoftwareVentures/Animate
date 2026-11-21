@@ -197,12 +197,17 @@ with sync_playwright() as p:
     b,c,pg,errs=prepare(p,camera=True)
     enrol(pg)
     pg.evaluate('''() => {
-      HTMLMediaElement.prototype.play = () => new Promise(resolve => { window.__releasePlay = resolve; });
-      startCamera();
+      HTMLMediaElement.prototype.play = function () {
+        window.startupTrack = this.srcObject.getVideoTracks()[0];
+        return new Promise(resolve => { window.__releasePlay = resolve; });
+      };
     }''')
+    pg.click('#camera')
     pg.wait_for_function("typeof window.__releasePlay === 'function'")
-    pg.evaluate('''() => { stopCamera(); window.__releasePlay(); }''')
-    pg.wait_for_timeout(100)
+    pg.get_by_role('button', name='Cancel camera start').click()
+    check('cancel during video playback immediately releases the acquired track',
+          pg.evaluate("startupTrack.readyState === 'ended' && document.querySelector('#video').srcObject === null"))
+    pg.evaluate('window.__releasePlay()')
     check('async camera play cannot resurrect a stopped media stream',
           pg.evaluate("() => !stream && !input && document.querySelector('#inputLabel').textContent === 'Not started'") and
           not any(e['type']=='camera_ready' for e in record(pg)['events']))
@@ -470,6 +475,26 @@ with sync_playwright() as p:
     pg.wait_for_function('pendingMedia[2].track.readyState === "ended"')
     check('resolved permission fails closed if page became hidden without a visibility event',
           pg.evaluate('!startInProgress && stream === null && !document.querySelector("#camera").disabled'))
+    pg.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>false})")
+    pg.click('#camera')
+    pg.evaluate('window.cancelledRequest = pendingMedia.at(-1)')
+    pg.get_by_role('button', name='Cancel camera start').click()
+    check('user can cancel a pending permission request before any track exists',
+          pg.locator('#camera').is_enabled() and pg.locator('#stop').is_disabled() and
+          pg.locator('#status').inner_text() == 'Camera start cancelled.')
+    pg.click('#camera')
+    pg.evaluate('cancelledRequest.release()')
+    pg.wait_for_function("cancelledRequest.track.readyState === 'ended'")
+    check('late permission grant leaves the replacement request cancellable',
+          pg.locator('#camera').is_disabled() and pg.locator('#stop').is_enabled() and
+          pg.evaluate('startInProgress && stream === null'))
+    pg.click('#sample')
+    pg.evaluate('pendingMedia.at(-1).release()')
+    pg.wait_for_function("pendingMedia.at(-1).track.readyState === 'ended'")
+    check('switching to touch during permission keeps the touch session after a late grant',
+          pg.locator('#inputLabel').inner_text() == 'Touch fallback' and pg.locator('#start').is_enabled() and
+          pg.evaluate("input === 'touch' && stream === null && !startInProgress") and
+          not any(e['type'] == 'camera_ready' for e in record(pg)['events']))
     check('pending camera permission lifecycle has no browser exceptions',not errs,str(errs))
     c.close();b.close()
 
@@ -497,6 +522,43 @@ with sync_playwright() as p:
     check('delayed video-play cancellation has no browser exceptions',not errs,str(errs))
     c.close();b.close()
 
+    for action in ('stop', 'pagehide', 'method change', 'mute'):
+        b,c,pg,errs = prepare(p, camera=True)
+        enrol(pg)
+        pg.click('#camera')
+        pg.wait_for_function('frameNumber >= 3')
+        pg.locator('#view').click()
+        # Prove the real synthetic red object reached both canvas bitmaps first.
+        pg.wait_for_function("""() => [view, analysis].every(canvas => {
+          const [r,g,b] = canvas.getContext('2d').getImageData(
+            Math.floor(canvas.width * .55), Math.floor(canvas.height / 2), 1, 1).data;
+          return r > g * 2 && r > b * 2;
+        })""", timeout=6000)
+        pg.evaluate('window.pixelTestTrack = stream.getVideoTracks()[0]')
+        if action == 'stop':
+            pg.get_by_role('button', name='Stop camera').click()
+        elif action == 'pagehide':
+            pg.evaluate("""() => {
+              document.getElementById('lab').hidden = true;
+              window.dispatchEvent(new Event('pagehide'));
+            }""")
+        elif action == 'method change':
+            pg.select_option('#detector', 'foreground')
+        else:
+            pg.evaluate("""() => {
+              Object.defineProperty(pixelTestTrack, 'muted', {get: () => true});
+              pixelTestTrack.dispatchEvent(new Event('mute'));
+            }""")
+            # A later render must not repaint the interrupted video.
+            pg.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+        empty = pg.evaluate("""() => [view, analysis].every(canvas => {
+          const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+          return !pixels.some(byte => byte !== 0);
+        })""")
+        state = pg.evaluate("pixelTestTrack.muted && interrupted && stale" if action == 'mute'
+                            else "pixelTestTrack.readyState === 'ended' && stream === null")
+        check(f'{action} clears the preview and analysis bitmaps', empty and state and not errs, str(errs))
+        c.close();b.close()
 
     # Regression for a strict terminal race: a performance trial already has
     # adequate 59-second coverage, then its camera track is ended just before
