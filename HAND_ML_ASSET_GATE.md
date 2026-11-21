@@ -6,6 +6,20 @@
 - The `@mediapipe/tasks-vision@1.2.3` tarball matches the npm registry SHA-512 and Google's sample lockfile. The ESM bundle, classic and module loaders, and their two WASM binaries total 30,160,730 bytes. With the model the payload totals 37,979,835 bytes before transport compression. [npm registry record](https://registry.npmjs.org/@mediapipe%2Ftasks-vision/1.2.3) · [Google sample lockfile](https://github.com/google-ai-edge/mediapipe-samples-web/blob/776b1878bd972de5ec85f96a4588cba840f5a1cc/pnpm-lock.yaml#L237-L238)
 - The runtime package declares Apache-2.0. Its tarball omits `LICENSE` and `NOTICE`. The upstream maintainer confirmed Apache 2.0 and acknowledged the packaging issue. The four npm JS/WASM loader and binary digests differ from the tagged source manifest. The embedded OpenCV and OpenCV contrib revisions resolve to upstream source. The WASM banner references Eigen 3.4.0 while a nearby notice-bearing prerelease lists 3.3.90. That prerelease has byte-identical loader JS and different WASM bytes. The release-matched notice set and corresponding source for applicable file-level obligations remain unresolved, so public vendoring and publishing remain blocked. [Upstream issue](https://github.com/google-ai-edge/mediapipe/issues/6403) · [Tagged source manifest](https://github.com/google-ai-edge/mediapipe/blob/1b9800ed7baddd397b888eaaaf0c841fe0358241/third_party/wasm_files.bzl#L13-L35) · [OpenCV revision](https://github.com/opencv/opencv/commit/e4f78fbcf1a773fbed69e14500e8b734963eb585) · [OpenCV contrib revision](https://github.com/opencv/opencv_contrib/commit/b67a855188a3d683813731010f6d39ac614733a4) · [Adjacent prerelease NOTICE](https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.2-rc.20261111/NOTICE)
 
+## Exact-runtime notice audit — release still blocked
+
+The pinned npm package declares Apache-2.0 in its metadata, but metadata alone is **not** the release-matched licence/notice package. Before any hosting or model redistribution, check exact runtime/native WASM file-level notices, corresponding source obligations, the Hand Landmarker model attribution, and confirm the operator-reviewed notice set.
+
+The repository now includes a **non-networking, fail-closed preflight**:
+
+```sh
+python tools/audit_runtime_rights.py --runtime-archive /path/to/tasks-vision-1.2.3.tgz
+```
+
+This exits nonzero if redistribution is not yet approved, even when the tarball checksum matches. GitHub's test job runs the same inspection with `--expect-blocked` against the already-downloaded, SHA-256 pinned runtime. That option verifies the **blocked state**, **not permission**. Unit tests check missing top-level notices, nearby-release substitution, wrong digests and false approval from metadata. The audit records unresolved obligations but cannot grant legal clearance.
+
+An operator-approved iPhone HTTPS preview is a separate controlled action. See [the iPhone-only decision gate](IPHONE_PREVIEW_DECISION_GATE.md). Do not publish the binary to GitHub Pages as a shortcut.
+
 ## Private test bundle
 
 The staging command verifies the npm archive SHA-256 and all six payload digests. It copies the exact app files and runtime/model payloads into a new directory outside Git checkouts. The stage has no publish metadata. GitHub Actions uses the same path on its ephemeral runner, serves only loopback assets during inference, and removes the inputs and stage after the job step. It fetches the exact Google test fixture with a pinned hash and stores no fixture in the repository. [Google test fixture pin](https://github.com/google-ai-edge/mediapipe/blob/a84de5639a255fbb5eb801dcd311350e6479e91e/third_party/external_files.bzl#L1272-L1276)
