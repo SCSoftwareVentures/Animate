@@ -516,8 +516,15 @@ with sync_playwright() as p:
     check('camera sample is initially active before terminal media-health race',
           json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='running')
     pg.evaluate("""() => {
+      // The virtual clock must have a positive time origin; the recorder
+      // intentionally rejects negative starts. Never wait 60 real seconds.
+      const realNow=performance.now.bind(performance);
+      Object.defineProperty(performance,'now',{
+        configurable:true,value:()=> realNow()+65000
+      });
       const now=performance.now();
       const start=now-60000;
+      lastFrameAt=now;
       deviceBench.begin(start,'colour');
       for(let i=1;i<60;i++) {
         deviceBench.noteLatency(8);
