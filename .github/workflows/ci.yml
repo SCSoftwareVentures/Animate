@@ -35,6 +35,8 @@ jobs:
         run: python tests/test_hosted_preview_audit.py
       - name: Test entirely offline zero-charge private preview ZIP export
         run: python tests/test_zero_cost_preview.py
+      - name: Adversarially audit self-reported iPhone evidence without personal data or uploads
+        run: python tests/test_iphone_evidence.py
       - name: Synthetic recognition diagnostic (informational; not a real-device pass gate)
         run: node tests/recognition_matrix.js --summary
       - name: Install browser test dependencies
