@@ -441,8 +441,8 @@ t('DEVICE BENCH: 60-second sample separates analysed FPS from animation loop FPS
   assert.equal(m.snapshot(0).status,'not_started');
   m.begin(1000,'colour');
   for(let second=1;second<=60;second++){
-    m.noteWindow(1000+second*1000,18,60);
     m.noteLatency(12);
+    m.noteWindow(1000+second*1000,18,60);
   }
   const result=m.snapshot(61000);
   assert.equal(result.status,'timed');assert.equal(result.complete,true);
