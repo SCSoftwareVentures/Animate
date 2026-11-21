@@ -1,0 +1,21 @@
+# Research participants and local experiments must not enter a source repository.
+*.csv
+*.json
+*.jsonl
+*.ndjson
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.log
+*.zip
+.env
+.env.*
+.DS_Store
+__pycache__/
+*.pyc
+node_modules/
+playwright-report/
+test-results/
+.Docker/

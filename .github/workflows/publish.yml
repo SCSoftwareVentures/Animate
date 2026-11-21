@@ -1,0 +1,59 @@
+# Public release is intentionally disabled by default. Three independent approvals are
+# required: an explicit manual dispatch, a repository owner-controlled approval variable,
+# and exact matching SHAs; the existing binary/licensing + privacy release checker also runs.
+name: Publish ANIMATE static experiment
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_public_deployment:
+        description: 'Explicitly acknowledge this will publish publicly'
+        required: true
+        type: boolean
+        default: false
+      reviewed_commit_sha:
+        description: '40-character commit SHA independently reviewed and approved'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main' && inputs.confirm_public_deployment == true && vars.ANIMATE_PUBLIC_RELEASE_APPROVED == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Require exact owner-approved commit (never inferred from a draft PR)
+        env:
+          REQUESTED_SHA: ${{ inputs.reviewed_commit_sha }}
+          APPROVED_SHA: ${{ vars.ANIMATE_APPROVED_COMMIT_SHA }}
+        shell: bash
+        run: |
+          if [[ ! "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'Denied: explicit reviewed SHA must be 40 lowercase hex characters'; exit 1
+          fi
+          if [[ -z "$APPROVED_SHA" || "$REQUESTED_SHA" != "$APPROVED_SHA" || "$REQUESTED_SHA" != "$GITHUB_SHA" ]]; then
+            echo 'Denied: workflow SHA, dispatch SHA and repository-approved SHA must all match'; exit 1
+          fi
+      - name: Validate privacy, files, exact model licence and safe publication scope
+        run: python tests/check_release.py --publish
+  deploy:
+    needs: prepare
+    if: github.ref == 'refs/heads/main' && inputs.confirm_public_deployment == true && vars.ANIMATE_PUBLIC_RELEASE_APPROVED == 'true'
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
