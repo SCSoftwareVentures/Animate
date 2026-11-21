@@ -27,6 +27,17 @@ def sha256(path):
         return hashlib.file_digest(data, "sha256").hexdigest()
 
 
+def verify_committed_sources(source_dir, commit):
+    """Prove packaged bytes are in the named Git commit, not dirty local changes."""
+    for name in sorted(SITE_FILES):
+        reviewed = subprocess.run(
+            ["git", "show", f"{commit}:site/{name}"], cwd=ROOT,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True,
+        ).stdout
+        if hashlib.sha256(reviewed).hexdigest() != sha256(source_dir / name):
+            raise ValueError("Preview source differs from reviewed Git commit: " + name)
+
+
 def validate_site(site):
     if not site.is_dir() or site.is_symlink():
         raise ValueError("Baseline preview site must be a real directory")
@@ -59,6 +70,11 @@ def build(destination):
             {p.name for p in entries} != set(SITE_FILES) or
             not all(p.is_file() for p in entries)):
         raise ValueError("Source must contain only the six verified app assets; refuse vendor/ or unknown files")
+    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
+                            text=True, capture_output=True, check=True).stdout.strip()
+    if len(commit) != 40 or any(x not in "0123456789abcdef" for x in commit):
+        raise ValueError("Cannot verify exact source commit")
+    verify_committed_sources(source_dir, commit)
     html = (source_dir / "index.html").read_text(encoding="utf-8")
     if html.count(ORIGINAL_HAND_OPTION) != 1 or html.count("</header>") != 1:
         raise ValueError("Unreviewed HTML cannot be transformed into an ML-free baseline")
@@ -72,10 +88,6 @@ def build(destination):
             shutil.copyfile(source_dir / name, site / name)
         (site / "index.html").write_text(html, encoding="utf-8")
         validate_site(site)
-        commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
-                                text=True, capture_output=True, check=True).stdout.strip()
-        if len(commit) != 40 or any(x not in "0123456789abcdef" for x in commit):
-            raise ValueError("Cannot verify exact source commit")
         report = {
             "kind": "NON_DISTRIBUTED_INTERNAL_BASELINE_CANDIDATE",
             "sourceCommit": commit,

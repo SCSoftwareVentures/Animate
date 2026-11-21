@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from build_baseline_preview import BASELINE_BANNER, build, validate_site
+from build_baseline_preview import BASELINE_BANNER, build, validate_site, verify_committed_sources
 from vendor_hand_model import SITE_FILES, REVIEWED_LICENSE_SHA256
 
 
@@ -48,6 +48,17 @@ def main():
               json.loads((target / "MANIFEST.json").read_text()) == manifest and
               all(hashlib.sha256((site / name).read_bytes()).hexdigest() == digest
                   for name, digest in manifest["files"].items()))
+        # Do not label uncommitted local modifications as an audited source commit.
+        source_fixture = Path(tmp) / "source-fixture"
+        source_fixture.mkdir()
+        for name in SITE_FILES:
+            (source_fixture / name).write_bytes((ROOT / "site" / name).read_bytes())
+        verify_committed_sources(source_fixture, manifest["sourceCommit"])
+        check("a clean exact-commit source passes provenance verification", True)
+        (source_fixture / "app.js").write_bytes(
+            (source_fixture / "app.js").read_bytes() + b"\n// unreviewed injected code\n")
+        must_refuse("dirty application bytes cannot impersonate the source commit",
+                    lambda: verify_committed_sources(source_fixture, manifest["sourceCommit"]))
         must_refuse("existing target is never overwritten", lambda: build(target))
         must_refuse("cannot stage model-free candidate inside source checkout",
                     lambda: build(ROOT / "unapproved-baseline-preview"))
@@ -73,7 +84,7 @@ def main():
           "if: github.ref == 'refs/heads/main'" in yaml)
     check("ML model release is blocked while exact rights approval is absent",
           REVIEWED_LICENSE_SHA256 is None)
-    print("PASS 13/13 no-model preview and public-release guard tests", flush=True)
+    print("PASS 15/15 no-model preview and public-release guard tests", flush=True)
 
 
 if __name__ == "__main__":
