@@ -256,6 +256,38 @@ t('v0.4 calibration must match a unique nearby blob, not a distant object', () =
 });
 
 
+t('EVIDENCE: role segmentation preserves declared customer cohort without conflating completion and paid demand', () => {
+  const educator = base('participant-role-01', [start(), complete()], {role:'Educator'});
+  const parent = base('participant-role-02', [start(), complete()], {role:'Parent / family'});
+  const summary = C.summarize([educator, parent], [C.ledgerKey(educator)]);
+  assert.equal(summary.byRole.Educator.acceptedExports, 1);
+  assert.equal(summary.byRole.Educator.verifiedExports, 1);
+  assert.equal(summary.byRole.Educator.verified.first, 1);
+  assert.equal(summary.byRole['Parent / family'].provisional.first, 1);
+  assert.equal(summary.byRole['Parent / family'].verified.first, 0);
+  assert.equal(summary.byRole.Educator.verified.returnEligible, 1);
+});
+t('EVIDENCE: missing role remains unclassified; unexpected or invented roles are rejected', () => {
+  const absent = base('participant-role-03', [start(), complete()]);
+  const forged = base('participant-role-04', [start(), complete()], {role:'Bank account manager'});
+  const malicious = base('participant-role-05', [start(), complete()], {role:{toString:()=> 'Educator'}});
+  const summary = C.summarize([absent, forged, malicious]);
+  assert.equal(summary.acceptedRecords, 1);
+  assert.equal(summary.rejectedRecords, 2);
+  assert.equal(summary.byRole.Unspecified.acceptedExports, 1);
+  assert.equal(summary.byRole.Educator.acceptedExports, 0);
+});
+t('EVIDENCE: each customer segment has its own independent denominator', () => {
+  const a = base('participant-role-06', [start(), complete()], {role:'Educator'});
+  const b = base('participant-role-07', [start('camera-run-002')], {role:'Educator'});
+  const c = base('participant-role-08', [start(), complete()], {role:'Developer'});
+  const summary = C.summarize([a,b,c],[C.ledgerKey(a),C.ledgerKey(b)]);
+  assert.equal(summary.byRole.Educator.verified.cameraTesters, 2);
+  assert.equal(summary.byRole.Educator.verified.first, 1);
+  assert.equal(summary.byRole.Developer.verified.cameraTesters, 0);
+  assert.equal(summary.verified.cameraTesters, 2);
+});
+
 t('v0.7 authenticates hand event provenance within an export, not against an external issuer', () => {
   const model='mediapipe-hand-landmarker-float16-v1';
   const startHand={...start(),detector:'hand',model};
