@@ -19,7 +19,8 @@ import socket
 import ssl
 from urllib.parse import urlsplit
 
-from build_baseline_preview import validate_site, sha256
+from build_baseline_preview import sha256
+from serve_safari_https import verify_no_model_candidate
 from vendor_hand_model import SITE_FILES
 
 MODEL_PATHS = (
@@ -87,7 +88,7 @@ def validate_origin(origin):
 def validated_candidate(site):
     """Validate the six-file no-ML candidate plus the external source manifest."""
     site = Path(site)
-    require(validate_site(site), "Invalid no-ML baseline site")
+    require(verify_no_model_candidate(site), "Invalid no-ML baseline site or source commit")
     manifest_file = site.parent / "MANIFEST.json"
     require(manifest_file.is_file() and not manifest_file.is_symlink() and
             manifest_file.stat().st_size < 16384, "Missing or oversized manifest")
@@ -186,23 +187,40 @@ def ensure_public_dns(host):
     except OSError as error:
         raise AuditError("Approved preview hostname failed DNS lookup") from error
     require(bool(records), "Approved preview host has no DNS records")
+    approved_addresses = []
     for entry in records:
         try:
             address = ipaddress.ip_address(entry[4][0])
         except ValueError as error:
             raise AuditError("Invalid preview DNS address") from error
         require(address.is_global, "Preview DNS resolves to a private or reserved address")
+        approved_addresses.append(str(address))
+    return approved_addresses[0]
 
 
-def make_network_fetch(host, cookie):
-    """Strict TLS, no redirect-following, and no credential logging or URL tokens."""
+class PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """Connect to a previously checked global IP, with the approved DNS name as TLS SNI."""
+    def __init__(self, host, pinned_ip):
+        super().__init__(host, port=443, timeout=12, context=ssl.create_default_context())
+        self._pinned_ip = pinned_ip
+
+    def connect(self):
+        raw = socket.create_connection((self._pinned_ip, 443), timeout=self.timeout)
+        try:
+            self.sock = self._context.wrap_socket(raw, server_hostname=self.host)
+        except Exception:
+            raw.close()
+            raise
+
+
+def make_network_fetch(host, cookie, pinned_ip):
+    """Strict TLS pinned to a public address; never follow redirects or log tokens."""
     require(bool(cookie) and "\r" not in cookie and "\n" not in cookie and
             len(cookie) <= 4096, "Approved cookie must be supplied via environment")
     def fetch(method, path, authorized):
         require(method in ("GET", "POST") and path.startswith("/") and
                 "?" not in path and "#" not in path, "Unexpected audit HTTP request")
-        conn = http.client.HTTPSConnection(host, port=443, timeout=12,
-                                         context=ssl.create_default_context())
+        conn = PinnedHTTPSConnection(host, pinned_ip)
         headers = {"Accept": "text/html,application/javascript,text/css,*/*",
                    "User-Agent": "ANIMATE-private-preview-audit/1",
                    "Cache-Control": "no-store"}
@@ -246,8 +264,8 @@ def main():
                 "Approval gate: host does not match ANIMATE_APPROVED_PREVIEW_HOST")
         cookie = os.environ.get("ANIMATE_PREVIEW_AUTH_COOKIE", "")
         expected = validated_candidate(args.site_dir)
-        ensure_public_dns(host)
-        report = audit_responses(expected, make_network_fetch(host, cookie))
+        pinned_ip = ensure_public_dns(host)
+        report = audit_responses(expected, make_network_fetch(host, cookie, pinned_ip))
         print(json.dumps(report, indent=2, sort_keys=True))
         print("PASS: server-response preflight only; no deployment or release approval")
     except (AuditError, OSError, ValueError) as error:
