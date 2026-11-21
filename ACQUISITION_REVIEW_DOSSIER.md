@@ -1,62 +1,52 @@
-# ANIMATE — Engineering and acquisition review dossier
+# ANIMATE — Acquisition diligence and current-source review
 
-**Review scope:** consolidated **draft** engineering snapshot. **Not a release, acquisition offer, valuation certificate or evidence of paying customers.** Do not distribute model assets, recruit participants, merge into `main` or deploy without separate owner approval.
+**Status: cumulative, draft, source-only acquisition-review candidate.** This is not a production deployment, valuation opinion, paid-customer business, verified physical-iPhone result, licence clearance, offer, or authority to sell or publish third-party assets.
 
-## Why this consolidated branch exists
+## Definitive review baseline
 
-ANIMATE development has been conducted across a chain of dependent draft pull requests, beginning with the Codex source import and continuing through privacy, model-inference, hosting and physical-device measurement safeguards. A reviewer should not have to infer the combined implementation by following many individual diffs. This branch contains the cumulative source, documentation and tests as **one proposed review diff against `main`**.
+The primary implementation prior to this review-documentation change is commit `31e12be76731e87beab99b32e8f49757e0983981` (GitHub Actions [#41](https://github.com/SCSoftwareVentures/Animate/actions/runs/44871344311): success). It is **69 commits ahead** of unchanged `main` (`951c00fb4232f690361b2e834a186b8ef917cc96`; one README). There were **22 open draft pull requests** at this audit. This is a significant source-discoverability problem for buyers. The full-diff draft review branch is created specifically to make all changes visible in a *single* comparison to `main`.
 
-Earlier PRs remain draft and independent. This consolidation does not silently merge them, approve licences, provide an external web preview or change repository visibility. The consolidated branch must pass its own full GitHub CI after the final documentation change. For a possible **strictly $0 owner-only physical iPhone test**, see [the private Free-plan ZIP option](ZERO_COST_IPHONE_PREVIEW.md); this is a proposed future external workflow, not a launched site.
+The source reviewed by an acquirer must be the **exact final head SHA shown on the cumulative PR**, together with its own full CI result, not merely the earlier #41 result. Do not mix and match historical draft results, deployment artefacts or cherry-picked checks. Previous stacked PRs remain open engineering history; no closure, merge, or publication is implied.
 
-## What is in scope
+## Current engineering state — no exaggerated claims
 
-| Module / gate | Grounded engineering status | Limitation |
+| Component | Source and automated evidence | Missing external evidence |
 | --- | --- | --- |
-| Colour baseline | HSV calibrated-object tracking, three-zone challenge, browser tests | Not object identity or ML |
-| Foreground baseline | Background-difference tracking and stale-camera protections | Requires a suitable stationary scene; not object identity |
-| Optional hand landmark adapter | MediaPipe Tasks Vision 1.2.3 / Hand Landmarker float16 v1 adapter; hash-pinned staged test-image inference in Chromium and Linux WebKit | No redistributable runtime/model bundle; no proven live iPhone performance |
-| User research evidence | Pseudonymous exported JSON, bounded feedback, role cohorts, evidence denominators, strict dates and local data clearing | Client-editable records are not proof of independent participation, adoption or sales |
-| Performance instrumentation | RAM-only 60-second camera sampling, analysed-frame throughput separate from animation FPS, gap/coverage rejection | Not independent accuracy, energy, temperature or demand measurement |
-| Baseline preview packaging | Exactly six static assets, no-ML menu disclosure, SHA-256 manifest, temporary runner test | Not hosted; not authenticated in an actual production environment |
-| Privacy and host safeguards | Constrained CSP, data-minimising projections, HTTPS bench boundary and simulated authenticated-host audit | Live host policy, logs, consent, access revocation and device tests remain unverified |
-| CI | JavaScript unit tests, Chromium and WebKit synthetic suites, staged pinned-model inference, privacy/security/licensing gates | CI is not a physical iPhone, legal clearance or buyer acceptance test |
+| Colour-zone baseline | HSV calibrated-colour tracker, dwell/ambiguity handling, three-zone challenges and repeatable browser tests | Physical iPhone task-success, latency, robustness, accessibility |
+| Foreground baseline | Stationary-background difference tracker, calibration lifecycle and interruption fail-closed | Varied realistic scenes and independently observed accuracy |
+| Optional hand landmark engine | Same-origin MediaPipe 1.2.3 adapter; SHA-pinned runtime/model staging for test-image inference on CI Chromium and Linux WebKit | Release-matched runtime/WASM notice obligations, approved distribution, real iPhone loading/accuracy |
+| Operator diagnostics | RAM-only 60-second performance samples, 10-second absent/zone controls, self-labelled event proxies and bounded packet export | Independently recorded ground truth, physical-device provenance, unbiased trials |
+| Integrity and privacy | Fixed-schema reports, incomplete-trial denominators, invalidation of rejected packet, content restrictions, restrictive CSP and local data deletion | Live hosted access test, privacy/legal review, consent and retention signoff |
+| Model-free ZIP | Deterministic local ZIP/receipt, SHA-256 checks, no ML binaries or automatic upload | A proven zero-cost hosting route with site-level authentication across **all** assets |
+| Automated tests | [CI #41](https://github.com/SCSoftwareVentures/Animate/actions/runs/44871344311) passed: 75 core, 51 synthetic-camera, 4 JS/Python contract, 22 operator-auditor, WebKit/security/rights/preview checks, and pinned test-image inference | Real mobile browser/device compatibility, field performance or independently verified demand |
+| Commercial proof | Source and pre-registered validation protocols only | Customer demand, paid commitments, defensible willingness-to-pay, qualified acquisition buyer interest |
 
-## Evidence index: verified, historical and still open
+The three `Play`, `Create` and `Learn` presentations share fundamentally the same zone-control mechanics. They do not constitute three separately demonstrated products. A working camera demo by itself is not an AI object-recognition platform or evidence of differentiation.
 
-The immediately preceding engineering branch, `engineering/animate-device-coverage-integrity` (commit `1c6b1eb145352e55f2a8ee02ef35bcf0b633314c`), passed GitHub Actions **run #25**: 147/147 unit/licensing/security tests and 107/107 browser tests, including staged real-model test-image inference in Chromium and WebKit. These results apply **only to that exact commit**, not automatically to the new consolidated head. The consolidation PR requires a fresh verification before it may be labelled clean.
+## Security and redistribution gates
 
-- **Exact-runtime legal rights:** `HAND_ML_ASSET_GATE.md`, `tools/audit_runtime_rights.py`, and GitHub issue [#10](https://github.com/SCSoftwareVentures/Animate/issues/10). The exact pinned `@mediapipe/tasks-vision@1.2.3` npm archive lacks top-level `LICENSE` and `NOTICE` files; metadata says Apache-2.0 but the appropriate native/WASM third-party and corresponding-source obligations remain unresolved. **Redistribution remains blocked**.
-- **Owner-controlled iPhone preview:** `IPHONE_PREVIEW_DECISION_GATE.md`, `tools/audit_hosted_preview.py`, and issue [#5](https://github.com/SCSoftwareVentures/Animate/issues/5). The real hosted audit has not been authorised or executed. A URL alone is not access control.
-- **Actual device data:** `IPHONE_DEVICE_METRICS_PROTOCOL.md` and `SAFARI_DEVICE_TEST.md`. No measured real iPhone camera recognition, heat, battery or false-completion evidence is recorded.
-- **Demand and exit price:** `COMMERCIAL_EVIDENCE_GATE.md`. No qualified customer pilot, verified willingness-to-pay commitment, acquirer offer, or defensible exit valuation is recorded.
+1. **No unreviewed binary distribution.** The model and runtime are staged only on temporary CI runners for exact test-image inference; they are not bundled in the code or no-ML preview. `HAND_ML_ASSET_GATE.md` and `tools/audit_runtime_rights.py` document unresolved release-matched notices and third-party/native WASM/source obligations. Do not treat npm `Apache-2.0` metadata as independent legal approval.
+2. **No private preview without enforced HTTPS access restrictions.** The offline ZIP contains no password or site authentication. An administration dashboard showing `Private` does not demonstrate that signed-out visitors cannot fetch HTML, JavaScript, styles, or model assets. The site-level, $0 access-control and live request-denial checks remain **BLOCKED / NOT VERIFIED**. Never infer a private deployed site from a build receipt or simulated hosted audit.
+3. **No CI-based publication permission.** `.github/workflows/publish.yml` requires manual owner-controlled release inputs and exact-sha variables, and the model licence/source gate remains blocked. There is no launched hosted product.
+4. **Do not commit person-level research.** No participant exports, survey data, raw camera frames, session logs, credentials, private investigator notes or buyer contact details should be committed to this public GitHub repository. Audit all branches and any external history separately if exclusivity is important.
 
-**Site security constraint:** Project dashboard Private visibility is not proof of private HTTP asset delivery. The draft ZIP has no built-in authentication; the hosting route remains blocked pending verified $0 site-level controls.
+## Buyer transaction diligence
 
-## Buyer diligence: what a prospective acquirer must inspect
+**Chain of title and transferability:** Confirm source authorship and ownership of original code, code generated with tools, any external contributions, third-party licences, trademarks and the ANIMATE name. No legal ownership opinion, assignment document or trademark clearance is established. The public repository already exposes source, which can affect exclusivity and competitive transfer value. A buyer must assess whether rights and history are transferable.
 
-**Source and ownership.** Inspect the source tree and commit/PR history, contributor permissions and the chain of title for all software and graphics. Commit history alone is not a legal assignment of intellectual property. Confirm ownership of contributions, rights to use the project name, any external assets, and whether existing public repository exposure affects the buyer's exclusivity expectations. **No source-code ownership, trademark clearance or transferability legal opinion is represented by this dossier.**
+**Real-world engineering:** Independently repeat the exact head CI, inspect the model-free app, and test an authorised authenticated HTTPS build on a physical iPhone. Record negative controls, missed target activations, real elapsed latency, crash/permission recovery, frame coverage, accessibility and battery/heat observations. Simulated browser results do not substitute.
 
-**Third-party rights.** Review applicable licences for dependencies, runtime/WASM, the trained model and any copied fixture or source content. Do not rely on the `Apache-2.0` npm metadata field alone. There is no permission to copy the CI-staged binary bundle into a sale deliverable until the exact obligations have been resolved.
+**Operating and commercial evidence:** There is no verified hosting service, production incident record, paid customer base, revenue, independently qualified user adoption, buyer acquisition commitment, or defensible market-based sale price. A product buyer may value a documented source prototype, but engineering investment alone does not determine sale value. No guaranteed exit or estimate is claimed.
 
-**Security and privacy.** Review `tests/check_release.py`, `.github/workflows/publish.yml`, `tools/build_baseline_preview.py` and `tests/test_hosted_preview_audit.py`. Verify that no participant exports, credentials, research ledgers, persistent tracking data or unreviewed ML binaries are committed. Privacy notices and retention wording need owner/legal review before any public-facing pilot.
+**Restrictions:** No public deployment, provider account/credit change, paid service, owner contact, recruitment, asset redistribution, merge to main, repo transfer or visibility change occurs from this document or draft PR.
 
-**Reproducibility.** Run the checkout's existing CI on the proposed acquisition branch. Compare the exact head SHA and workflow outcome. Verify there is no hidden manual production service or undocumented runtime required for the model-free baseline. Model-based operation requires independently reviewed assets and a separate, authorised distribution procedure.
+## Honest decision gates
 
-**Operations and post-sale costs.** The current source is an experimental local-first web app, not a proven SaaS with production support. There is no verified hosted environment, paid-customer revenue, production incident history, usage analytics or market-tested support burden. Any projected operating costs, conversion or revenue model would be an estimate until evidenced.
+- **Source review:** Eligible for internal technical inspection **only if the cumulative final-head PR CI succeeds** and a reviewer signs off its diff. Keep merged/released status as false.
+- **Free physical iPhone preview:** BLOCKED pending verified full-site authentication, owner approval, HTTPS/CSP response audit, actual Safari camera behaviour and private handling of observations. A no-cost host is *not yet identified as satisfying every requirement*.
+- **Model-based redistribution:** BLOCKED pending exact-version rights, corresponding notices and source obligations.
+- **Measured product reliability:** UNVERIFIED without physical device trials under an advance protocol with all failures included.
+- **Commercial competitiveness and buyer appeal:** UNVERIFIED without representative demand, competing alternatives and qualified buyer evidence.
+- **Sale contract:** NOT PREPARED; ownership, asset schedule, warranties, privacy, intellectual property and transfer terms require owner and competent legal review.
 
-**Commercial defensibility.** A technical demonstration does not show product-market fit, competitive dominance or attractiveness to a buyer. Choose a specific use case, gather independent user evidence and compare with actual alternatives before claiming differentiation. Acquisition interest must be independently documented rather than inferred from a working prototype.
-
-## Hard go/no-go gates
-
-1. **Current candidate:** source is suitable for further code review and offline testing, subject to successful current-head CI. Do not call it a completed product available for sale to end users.
-2. **Model-free private iPhone pilot:** owner must separately choose and approve hosting, genuine access control, privacy terms, budget if any and external network activity. Validate the exact staged candidate and run physical Safari tests. A code-only PR is not deployment permission.
-3. **ML distribution:** exact runtime and model rights, release-matched native/WASM notices and source obligations must be reviewed; `tests/check_release.py --publish` and fresh CI must pass. Model distribution is independently owner-controlled.
-4. **Customer research:** separate owner consent to outreach, proper privacy/participant terms, pre-registered metrics and independent recruited participants. No invented market proof.
-5. **Acquisition diligence:** chain of title, third-party component schedule, legal/transferability review and a qualified buyer assessment. No guaranteed exit or estimated selling price in this dossier.
-6. **Integration:** owner authorisation required for merging, releasing, transferring repository ownership or changing repository visibility. Draft PR status must remain unchanged until approval.
-
-## Change control for reviewers
-
-Use the single consolidated draft PR to `main` as the **source review entrypoint**. Its GitHub CI status and file diff, not an old conversation or a staged local test, are the authoritative indicators of what has been verified. The original dependent PRs remain available as engineering history. If any underlying PR changes, compare and reconcile it with this branch and rerun the necessary checks before making a claim about the consolidated snapshot.
-
-**This document itself makes no external contact, sends no research data, grants no rights and approves no release.**
+Start with [the buyer review index](BUYER_REVIEW_INDEX.md), then the [model rights gate](HAND_ML_ASSET_GATE.md), [operator iPhone metrics](IPHONE_DEVICE_METRICS_PROTOCOL.md), [operator evidence audit](IPHONE_EVIDENCE_AUDIT_PROTOCOL.md) and [commercial evidence gate](COMMERCIAL_EVIDENCE_GATE.md).

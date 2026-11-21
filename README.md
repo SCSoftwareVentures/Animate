@@ -1,10 +1,12 @@
 # ANIMATE v0.7.0 — Engineering hardening candidate
 
-**Status: consolidated draft engineering candidate — not approved for public deployment, participant recruitment, model redistribution or sale as a released end-user product.**
+**Status: candidate source and tests only. The verified source is on a draft engineering branch, while `main` still contains a README only.** No merge, hosted preview, model redistribution, external recruitment, financial commitment or released consumer product has been authorised.
 
-**Start here for review:** [Acquisition and integration dossier](ACQUISITION_REVIEW_DOSSIER.md). A separate [no-charge iPhone preview option](ZERO_COST_IPHONE_PREVIEW.md) packages a model-free offline ZIP but does not deploy it or activate provider billing. The cumulative source is being reviewed as one proposed change against `main`; the earlier stacked draft PRs remain engineering history. Technical verification and commercial readiness are separate gates.
+**Start buyer review here:** [Single cumulative source-and-evidence index](BUYER_REVIEW_INDEX.md), [acquisition diligence dossier](ACQUISITION_REVIEW_DOSSIER.md), and the draft full-diff pull request against `main`. Prior chained drafts remain engineering history; they are not merged and should not be individually mistaken for production releases.
 
-The preceding exact engineering commit `1c6b1eb145352e55f2a8ee02ef35bcf0b633314c` passed GitHub Actions run #25 (147 unit/security/licensing checks and 107 browser checks). **That is historical evidence, not verification of a later consolidated commit.** Inspect the consolidated PR's own CI status before approving any merge.
+**Last verified engineering baseline before this snapshot:** commit `31e12be76731e87beab99b32e8f49757e0983981`, [GitHub Actions #41](https://github.com/SCSoftwareVentures/Animate/actions/runs/44871344311): 75 core checks, 51 Chromium simulated-camera checks, 4 JavaScript-to-Python packet-contract checks, and all configured security, WebKit, and pinned-fixture inference steps passed. Those results belong **only to that SHA**, not automatically to this review-documentation commit. Review the cumulative PR's own exact-SHA CI before acceptance.
+
+**Real-device, legal and commercial blockers:** No physical iPhone Safari camera trials, independently measured recognition accuracy, demonstrably authenticated $0 HTTPS preview, verified model/runtime redistribution clearance, verified user demand, qualified acquirer offer or supported exit valuation. The available model-free ZIP is unhosted and **not access-controlled**. No model assets are included in the public source or model-free ZIP.
 
 ANIMATE v0.7.0 is an engineering candidate with three tracking implementations:
 
