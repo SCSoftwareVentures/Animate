@@ -15,6 +15,7 @@ import re
 
 from audit_hosted_preview import validate_origin
 from serve_safari_https import BenchHandler, load_assets
+from vendor_hand_model import ROOT
 
 PORT = 8765
 DEFAULT_DOMAIN = "app.github.dev"
@@ -43,7 +44,13 @@ def prepare_server(site, host, env, acknowledged, port=PORT):
     allowed = validate_preview_intent(host, env, acknowledged)
     if port not in (PORT, 0):
         raise ValueError("Unapproved port; the configured preview port is 8765")
-    assets = load_assets(Path(site).resolve())
+    given = Path(site)
+    if given.is_symlink():
+        raise ValueError("Symlinked baseline site is forbidden")
+    staged = given.resolve()
+    if staged.is_relative_to(ROOT) or ROOT.is_relative_to(staged):
+        raise ValueError("Baseline site must remain outside the repository")
+    assets = load_assets(staged)
     server = ThreadingHTTPServer(("127.0.0.1", port), BenchHandler)
     server.allowed_hosts = {allowed, allowed + ":443"}
     server.assets = assets
