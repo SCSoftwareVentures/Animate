@@ -20,7 +20,7 @@ import ssl
 from urllib.parse import urlsplit
 
 from build_baseline_preview import sha256
-from serve_safari_https import verify_no_model_candidate
+from serve_safari_https import CSP_HEADER, SECURITY_HEADERS, verify_no_model_candidate
 from vendor_hand_model import SITE_FILES
 
 MODEL_PATHS = (
@@ -40,9 +40,6 @@ PROBE_SUFFIX = "?animate_access_probe=1"
 ALTERNATE_PATHS = (
     "/%69ndex.html", "/app%2Ejs", "/styles%2Ecss", "/./app.js",
 )
-REQUIRED_POLICY = ("default-src 'none'", "script-src 'self'",
-                   "connect-src 'self'", "frame-ancestors 'none'")
-
 
 class AuditError(ValueError):
     pass
@@ -123,8 +120,31 @@ def validated_candidate(site):
     return expected
 
 
+def parse_csp(policy):
+    """Reject duplicate directives and compare actual browser-effective source lists.
+
+    Merely searching for "connect-src 'self'" can pass an unsafe policy such as
+    "connect-src 'self' https://collector.example". The no-model ZIP has one
+    exact, reviewed CSP: no extra source or alternate security directive is
+    approved. Directive and source-list order are semantically irrelevant.
+    """
+    parsed = {}
+    for raw in policy.split(";"):
+        parts = raw.lower().split()
+        if not parts:
+            continue
+        name, *values = parts
+        require(re.fullmatch(r"[a-z][a-z0-9-]*", name) is not None and
+                name not in parsed, "CSP has a duplicate or invalid directive")
+        require(len(values) == len(set(values)), "CSP repeats a source expression")
+        parsed[name] = sorted(values)
+    return parsed
+
+
 def check_headers(response, path):
-    require(response.header("cache-control").lower().find("no-store") >= 0,
+    cache = [piece.strip().lower() for piece in
+             response.header("cache-control").split(",")]
+    require("no-store" in cache and "public" not in cache,
             "Preview response can be cached: " + path)
     require(response.header("x-content-type-options").lower() == "nosniff",
             "Missing nosniff: " + path)
@@ -134,12 +154,15 @@ def check_headers(response, path):
             "Cross-origin resource policy is not restrictive: " + path)
     require(response.header("referrer-policy").lower() == "no-referrer",
             "Referrer policy can leak the preview URL: " + path)
-    policy = response.header("content-security-policy").lower()
-    require(all(part in policy for part in REQUIRED_POLICY),
-            "CSP is missing an essential restriction: " + path)
-    permissions = response.header("permissions-policy").replace(" ", "").lower()
-    require("camera=(self)" in permissions and "microphone=()" in permissions and
-            "geolocation=()" in permissions, "Permissions policy is too broad: " + path)
+    policy = parse_csp(response.header("content-security-policy"))
+    require(policy == parse_csp(CSP_HEADER),
+            "CSP deviates from the reviewed same-origin, no-upload policy: " + path)
+    permissions = response.header("permissions-policy")
+    actual = [part.strip().replace(" ", "").lower() for part in permissions.split(",")]
+    approved = [part.strip().replace(" ", "").lower() for part in
+                SECURITY_HEADERS["Permissions-Policy"].split(",")]
+    require(len(actual) == len(set(actual)) and sorted(actual) == sorted(approved),
+            "Permissions policy deviates from the camera-only restriction: " + path)
     require(not response.header("access-control-allow-origin"),
             "Unexpected third-party CORS permission: " + path)
     hsts = response.header("strict-transport-security").lower()
@@ -207,6 +230,7 @@ def audit_responses(expected, fetch):
         "checkedStaticFiles": len(expected),
         "accessControl": "Checked six static assets, root, HEAD and bounded alias probes with supplied credentials",
         "alternateAccessProbes": "No unauthorised successful or redirected responses in bounded request variants",
+        "approvedHeaderPolicy": "Exact reviewed CSP source lists and camera-only Permissions Policy on every served asset",
         "canonicalSensitivePaths": "Denied in both authenticated and unauthenticated sessions",
         "deploymentApproved": False,
         "privacyOperatorApproved": False,

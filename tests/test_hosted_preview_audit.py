@@ -21,7 +21,8 @@ HEADERS = {
     "content-security-policy": (
         "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; "
         "style-src 'self'; img-src 'self' data:; connect-src 'self'; "
-        "object-src 'none'; frame-ancestors 'none'"
+        "object-src 'none'; base-uri 'none'; form-action 'none'; "
+        "frame-ancestors 'none'"
     ),
     "permissions-policy": "camera=(self), microphone=(), geolocation=(), payment=()",
     "x-frame-options": "DENY",
@@ -146,6 +147,77 @@ class PreviewAuditTests(unittest.TestCase):
         changes = {("GET", "/index.html", True): Evidence(200, headers, EXPECTED["/index.html"])}
         with self.assertRaisesRegex(AuditError, "CSP"):
             audit_responses(EXPECTED, fixture(changes))
+
+    def test_rejects_csp_that_allows_external_uploads(self):
+        headers = dict(HEADERS)
+        headers["content-security-policy"] = (
+            headers["content-security-policy"].replace(
+                "connect-src 'self'", "connect-src 'self' https://collector.invalid"))
+        with self.assertRaisesRegex(AuditError, "CSP"):
+            audit_responses(EXPECTED, fixture({
+                ("GET", "/index.html", True): Evidence(200, headers, EXPECTED["/index.html"])
+            }))
+
+    def test_rejects_csp_that_allows_inline_scripts(self):
+        headers = dict(HEADERS)
+        headers["content-security-policy"] += "; script-src 'unsafe-inline'"
+        with self.assertRaisesRegex(AuditError, "CSP"):
+            audit_responses(EXPECTED, fixture({
+                ("GET", "/index.html", True): Evidence(200, headers, EXPECTED["/index.html"])
+            }))
+
+    def test_rejects_csp_that_allows_remote_images(self):
+        headers = dict(HEADERS)
+        headers["content-security-policy"] = (
+            headers["content-security-policy"].replace(
+                "img-src 'self' data:", "img-src 'self' data: https:"))
+        with self.assertRaisesRegex(AuditError, "CSP"):
+            audit_responses(EXPECTED, fixture({
+                ("GET", "/index.html", True): Evidence(200, headers, EXPECTED["/index.html"])
+            }))
+
+    def test_rejects_csp_without_form_action_restriction(self):
+        headers = dict(HEADERS)
+        headers["content-security-policy"] = (
+            headers["content-security-policy"].replace("form-action 'none'", "form-action *"))
+        with self.assertRaisesRegex(AuditError, "CSP"):
+            audit_responses(EXPECTED, fixture({
+                ("GET", "/index.html", True): Evidence(200, headers, EXPECTED["/index.html"])
+            }))
+
+    def test_rejects_csp_with_duplicate_sources(self):
+        headers = dict(HEADERS)
+        headers["content-security-policy"] = (
+            headers["content-security-policy"].replace(
+                "connect-src 'self'", "connect-src 'self' 'self'"))
+        with self.assertRaisesRegex(AuditError, "CSP"):
+            audit_responses(EXPECTED, fixture({
+                ("GET", "/index.html", True): Evidence(200, headers, EXPECTED["/index.html"])
+            }))
+
+    def test_rejects_added_permissions_policy_camera_exception(self):
+        headers = dict(HEADERS)
+        headers["permissions-policy"] += ", camera=(*)"
+        with self.assertRaisesRegex(AuditError, "Permissions"):
+            audit_responses(EXPECTED, fixture({
+                ("GET", "/index.html", True): Evidence(200, headers, EXPECTED["/index.html"])
+            }))
+
+    def test_rejects_public_cache_even_with_no_store(self):
+        headers = dict(HEADERS)
+        headers["cache-control"] = "public, no-store"
+        with self.assertRaisesRegex(AuditError, "cached"):
+            audit_responses(EXPECTED, fixture({
+                ("GET", "/index.html", True): Evidence(200, headers, EXPECTED["/index.html"])
+            }))
+
+    def test_permits_semantically_equivalent_csp_directive_order(self):
+        headers = dict(HEADERS)
+        headers["content-security-policy"] = "; ".join(
+            reversed(headers["content-security-policy"].split("; ")))
+        self.assertEqual(audit_responses(EXPECTED, fixture({
+            ("GET", "/index.html", True): Evidence(200, headers, EXPECTED["/index.html"])
+        }))["technicalPreflight"], "PASS")
 
     def test_rejects_wide_cors(self):
         headers = dict(HEADERS)
