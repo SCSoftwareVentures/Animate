@@ -523,6 +523,119 @@ function createDeviceBench(durationMs = 60000) {
 }
 
 /**
+ * Self-labelled, operator-only zone and absent-target controls.
+ * Runs on analysed camera frames only; records bounded counts, never pixels,
+ * coordinates, identifiers or a claim of independently verified ground truth.
+ */
+function createZoneControlProbe(durationMs = 10000) {
+  if (!Number.isInteger(durationMs) || durationMs < 3000 || durationMs > 60000) {
+    throw Error('Invalid zone-control duration');
+  }
+  const labels = ['absent', 'left', 'middle', 'right'];
+  const zoneIndex = { left: 0, middle: 1, right: 2 };
+  const tracker = createZoneTracker();
+  const requiredSeconds = Math.ceil(durationMs / 1000 * .8);
+  let state = null;
+  const within = (time, start) => Number.isFinite(time) && time >= start;
+  function begin(now, label, detector) {
+    if (!Number.isFinite(now) || now < 0 || !labels.includes(label) ||
+        !['colour', 'foreground', 'hand'].includes(detector)) {
+      throw Error('Invalid operator zone-control label');
+    }
+    tracker.reset();
+    state = {
+      started: now, ended: null, label, detector, status: 'running',
+      samples: 0, detectedFrames: 0, absentFrames: 0, ambiguousFrames: 0,
+      correctZoneFrames: 0, wrongZoneFrames: 0, expectedDwellEvents: 0,
+      unexpectedDwellEvents: 0, rejectedSamples: 0, maxGapMs: 0, lastAt: null,
+      secondBuckets: new Map()
+    };
+    return snapshot(now);
+  }
+  function active() { return !!state && state.ended === null; }
+  function adequatelyObserved() {
+    const wellSampledSeconds = [...state.secondBuckets.values()].filter(n => n >= 3).length;
+    return !!state && state.samples >= requiredSeconds * 3 &&
+      wellSampledSeconds >= requiredSeconds && state.rejectedSamples === 0 &&
+      state.maxGapMs <= 2500 && state.lastAt >= state.started + durationMs - 1000;
+  }
+  function add(point, now) {
+    if (!active()) return snapshot(now);
+    if (!within(now, state.started) || (state.lastAt !== null && now <= state.lastAt)) {
+      state.rejectedSamples++;
+      return snapshot(now);
+    }
+    const gap = now - (state.lastAt ?? state.started);
+    state.maxGapMs = Math.max(gap, state.maxGapMs);
+    state.lastAt = now;
+    state.samples++;
+    const bucket = Math.min(Math.floor((now - state.started) / 1000),
+      Math.ceil(durationMs / 1000) - 1);
+    state.secondBuckets.set(bucket, (state.secondBuckets.get(bucket) || 0) + 1);
+    const validPoint = point && !point.ambiguous && Number.isFinite(point.x) &&
+      point.x >= 0 && point.x <= 1 && Number.isFinite(point.y) &&
+      point.y >= 0 && point.y <= 1;
+    if (point?.ambiguous) state.ambiguousFrames++;
+    if (validPoint) state.detectedFrames++;
+    else state.absentFrames++;
+    const result = tracker.update(validPoint ? point : null, now);
+    if (state.label !== 'absent') {
+      if (validPoint && result.zone === zoneIndex[state.label]) state.correctZoneFrames++;
+      else if (validPoint) state.wrongZoneFrames++;
+    }
+    if (result.fired !== null) {
+      if (state.label !== 'absent' && result.fired === zoneIndex[state.label]) {
+        state.expectedDwellEvents++;
+      } else {
+        state.unexpectedDwellEvents++;
+      }
+    }
+    if (now - state.started >= durationMs) finish(now, 'timed');
+    return snapshot(now);
+  }
+  function finish(now, reason = 'manual') {
+    if (!active()) return snapshot(now);
+    if (!within(now, state.started) || !['timed', 'manual', 'camera_stopped', 'interrupted'].includes(reason)) {
+      throw Error('Invalid zone-control stop');
+    }
+    state.ended = Math.min(now, state.started + durationMs);
+    state.status = reason === 'timed' && !adequatelyObserved() ? 'insufficient_coverage' : reason;
+    return snapshot(now);
+  }
+  function snapshot(now) {
+    if (!state) return {
+      kind: 'ANIMATE_SELF_LABELLED_ZONE_CONTROL', status: 'not_started',
+      complete: false, evidenceType: 'OPERATOR_LABELLED_PROXY_NOT_VERIFIED_GROUND_TRUTH'
+    };
+    const end = state.ended ?? (within(now, state.started) ? now : state.started);
+    const elapsedMs = Math.round(Math.min(durationMs, Math.max(0, end - state.started)));
+    return {
+      kind: 'ANIMATE_SELF_LABELLED_ZONE_CONTROL', build: BUILD,
+      detector: state.detector, expectedCondition: state.label,
+      evidenceType: 'OPERATOR_LABELLED_PROXY_NOT_VERIFIED_GROUND_TRUTH',
+      status: state.status, complete: state.status === 'timed',
+      elapsedMs, plannedMs: durationMs,
+      coverage: {
+        sampledSeconds: state.secondBuckets.size,
+        secondsWithThreeFreshFrames: [...state.secondBuckets.values()].filter(n => n >= 3).length,
+        requiredSeconds,
+        maxGapMs: Math.round(state.maxGapMs), rejectedSamples: state.rejectedSamples,
+        adequate: adequatelyObserved() && elapsedMs >= durationMs
+      },
+      analysedFrames: state.samples, detectedFrames: state.detectedFrames,
+      undetectedFrames: state.absentFrames, ambiguousFrames: state.ambiguousFrames,
+      correctZoneFrames: state.correctZoneFrames, wrongZoneFrames: state.wrongZoneFrames,
+      expectedDwellEvents: state.expectedDwellEvents,
+      unexpectedDwellEvents: state.unexpectedDwellEvents,
+      independentlyVerified: false, userDemandMeasured: false,
+      limitations: 'Requires three analysed frames in each of 80% of seconds. One manually labelled static condition. Dwell events are proxy activations, not observed task completions. An absent-labelled false alarm is an operator-reported proxy, not independently verified accuracy.'
+    };
+  }
+  function reset() { state = null; tracker.reset(); }
+  return { begin, add, finish, snapshot, reset, active };
+}
+
+/**
  * Remove only the ANIMATE research-data namespace across historical build versions.
  * Snapshot keys before deletion, since deleting while iterating shifts localStorage indices.
  * Report blocked/partial deletion instead of suggesting that a reset definitely succeeded.
@@ -557,7 +670,7 @@ function deleteLocalResearchData(storage) {
 const core = { BUILD, SCHEMA_VERSION, MAX_EVENTS, clamp, rgb2hsv, hueDist, sampleReference,
   skinLike, locate, createZoneTracker, localDay, dayDiff, modes, roles, sanitizeRecord, sanitizeLocalRecord, ledgerKey,
   recordMetrics, summarize, PROBE_FRAMES, probeColours, probeLights, probeBackgrounds,
-  probeExpected, createRecognitionProbe, calibrationCandidate, deleteLocalResearchData, createDeviceBench };
+  probeExpected, createRecognitionProbe, calibrationCandidate, deleteLocalResearchData, createDeviceBench, createZoneControlProbe };
 if (typeof module !== 'undefined' && module.exports) module.exports = core;
 else root.AnimateCore = core;
 })(typeof globalThis === 'undefined' ? this : globalThis);

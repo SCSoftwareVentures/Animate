@@ -6,7 +6,7 @@
 
 ANIMATE development has been conducted across a chain of dependent draft pull requests, beginning with the Codex source import and continuing through privacy, model-inference, hosting and physical-device measurement safeguards. A reviewer should not have to infer the combined implementation by following many individual diffs. This branch contains the cumulative source, documentation and tests as **one proposed review diff against `main`**.
 
-Earlier PRs remain draft and independent. This consolidation does not silently merge them, approve licences, provide an external web preview or change repository visibility. The consolidated branch must pass its own full GitHub CI after the final documentation change.
+Earlier PRs remain draft and independent. This consolidation does not silently merge them, approve licences, provide an external web preview or change repository visibility. The consolidated branch must pass its own full GitHub CI after the final documentation change. For a possible **strictly $0 owner-only physical iPhone test**, see [the private Free-plan ZIP option](ZERO_COST_IPHONE_PREVIEW.md); this is a proposed future external workflow, not a launched site.
 
 ## What is in scope
 
@@ -29,6 +29,8 @@ The immediately preceding engineering branch, `engineering/animate-device-covera
 - **Owner-controlled iPhone preview:** `IPHONE_PREVIEW_DECISION_GATE.md`, `tools/audit_hosted_preview.py`, and issue [#5](https://github.com/SCSoftwareVentures/Animate/issues/5). The real hosted audit has not been authorised or executed. A URL alone is not access control.
 - **Actual device data:** `IPHONE_DEVICE_METRICS_PROTOCOL.md` and `SAFARI_DEVICE_TEST.md`. No measured real iPhone camera recognition, heat, battery or false-completion evidence is recorded.
 - **Demand and exit price:** `COMMERCIAL_EVIDENCE_GATE.md`. No qualified customer pilot, verified willingness-to-pay commitment, acquirer offer, or defensible exit valuation is recorded.
+
+**Site security constraint:** Project dashboard Private visibility is not proof of private HTTP asset delivery. The draft ZIP has no built-in authentication; the hosting route remains blocked pending verified $0 site-level controls.
 
 ## Buyer diligence: what a prospective acquirer must inspect
 

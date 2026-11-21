@@ -33,6 +33,8 @@ jobs:
         run: python tests/test_bench_https_security.py
       - name: Test hosted-preview zero-network access and asset integrity auditor
         run: python tests/test_hosted_preview_audit.py
+      - name: Test entirely offline zero-charge private preview ZIP export
+        run: python tests/test_zero_cost_preview.py
       - name: Synthetic recognition diagnostic (informational; not a real-device pass gate)
         run: node tests/recognition_matrix.js --summary
       - name: Install browser test dependencies
@@ -47,6 +49,14 @@ jobs:
           trap 'rm -rf -- "$baseline_dir"' EXIT
           python tools/build_baseline_preview.py --output "$baseline_dir/candidate"
           python tests/test_webkit_smoke.py --site-dir "$baseline_dir/candidate/site" --baseline
+      - name: Exercise unbundled Netlify Free ZIP locally in WebKit, without deploying
+        run: |
+          preview_dir="$(mktemp -d "$RUNNER_TEMP/animate-nocharge.XXXXXX")"
+          trap 'rm -rf -- "$preview_dir"' EXIT
+          python tools/build_zero_cost_preview.py --output-dir "$preview_dir/preview"
+          mkdir "$preview_dir/unpacked"
+          python -m zipfile -e "$preview_dir/preview/animate-model-free-private-preview.zip" "$preview_dir/unpacked"
+          python tests/test_webkit_smoke.py --site-dir "$preview_dir/unpacked" --baseline
       - name: Run offline browser regression suite
         run: python tests/offline_browser.py && python tests/test_hand_browser.py
       - name: Run synthetic camera browser suite over localhost

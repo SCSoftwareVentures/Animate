@@ -17,6 +17,8 @@ The ChatGPT conversation, GitHub code browser and downloaded HTML files are not 
 5. **Revocability** — Preview must be terminable, its host-side secrets removed, and cached data handled as permitted by the provider. A prior download cannot be remotely deleted from an observer's device.
 6. **No surprise costs** — Service signup, paid hosting, purchases and publication remain owner-controlled actions.
 
+**Access-control clarification:** A cloud project marked Private in its management dashboard does not prove the deployed site and every JS/CSS URL deny unauthorised HTTP visitors. No ZIP upload is approved until a truly free site-level authentication method is independently validated; otherwise the $0 hosting route stays BLOCKED.
+
 ## Two distinct testing gates
 
 ### Gate A: No-model baseline (touch, colour, foreground)
@@ -57,6 +59,12 @@ The tool deliberately reports `deploymentApproved: false` and `physicalIphoneVer
 ### Gate B: Hand-ML preview
 
 **Not yet authorised or prepared for distribution.** Requires resolved exact runtime/model notices, approved vendor bundle, integrity checks, operator permission for external hosting and the full release security review. Only then test actual fingertip tracking on physical iPhone Safari using [the bench protocol](SAFARI_DEVICE_TEST.md), recording false completions, latency, inferred FPS, reload/start failures, camera revocation, battery and thermal observations.
+
+## Explicit $0 owner-only private-preview option (proposed)
+
+The preferred **no-additional-cost** path is now [ZERO_COST_IPHONE_PREVIEW.md](ZERO_COST_IPHONE_PREVIEW.md). Its code creates only an **offline, seven-file, model-free Netlify ZIP** with verified app bytes and security headers. It does not open an account, call provider APIs, deploy a URL or request a payment method. The original SHA-256 receipt remains outside the served ZIP.
+
+Provider documentation indicates a **credit-based Netlify Free plan with a hard usage cap** and **Private** owner-only project visibility, but the particular account, public/private setting, hosted headers, billing behaviour and physical iPhone compatibility are **not verified**. Free-plan hard limits do not make a Public site acceptable. **Stop rather than pay, upload to a public project, or create a billed Codespace.** A live site requires an independently approved provider account, explicit privacy/access verification and owner-only manual deployment.
 
 ## Required owner decision before any external action
 
