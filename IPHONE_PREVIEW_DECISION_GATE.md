@@ -39,6 +39,21 @@ The alternate computer/LAN server `tools/serve_safari_https.py` is now restricte
 
 **Important:** The bench server requires a separate machine and an operator-controlled TLS certificate; it cannot run from this iPhone-only ChatGPT environment. Do not use the old LAN procedure as an assumed deployment route. A true iPhone-only, revocable HTTPS preview still requires a separate owner-approved provider and privacy/access review. Physical Safari measurements remain absent.
 
+### Hosted HTTPS preview preflight — prepared, but network auditing is disabled
+
+The offline tested `tools/audit_hosted_preview.py` can verify a future **operator-approved, authenticated HTTPS origin**, without creating or deploying a site. Its normal CI exercises **in-memory adversarial responses only**: no DNS resolution, remote requests, cloud account, uploaded files or credentials are used in CI.
+
+It is intentionally **not a way to launch a preview**. A live audit is disabled unless all of the following are present: an explicit `--allow-network-audit` opt-in, an exact approved public HTTPS hostname from `ANIMATE_APPROVED_PREVIEW_HOST`, an authenticated session cookie supplied securely through `ANIMATE_PREVIEW_AUTH_COOKIE`, and a locally verified six-file baseline candidate. Tokens must **never** appear in a URL, command line, GitHub issue, pull request or log. Do not set those values until the owner explicitly selects and authorises a hosting provider and preview scope.
+
+When separately authorised, the audit is read-only and checks the following boundary:
+
+- A visitor without credentials receives HTTP 401/403 on **each** of the six app assets, not just the home page. SSO redirects are treated as *unverified*, not as automatic proof of access control.
+- The authenticated build matches the independently reviewed SHA-256 values of all six candidate files. The original builder manifest remains **outside** the served site.
+- MediaPipe runtime/model/WASM paths, manifest, environment and research-ledger paths do not return content. Unexpected POST/upload endpoints fail.
+- Responses have a restrictive HTTP Content Security Policy including `frame-ancestors 'none'`, no cross-origin permission, secure permissions/caching/referrer headers and an HSTS policy; TLS certificate validation and an explicitly approved public DNS hostname are mandatory.
+
+The tool deliberately reports `deploymentApproved: false` and `physicalIphoneVerified: false` **even when the technical preflight passes**. It cannot prove host-provider access logs, identity-service configuration, consent/privacy compliance, revocation after shutdown, cellular/iPhone behaviour or consumer demand. These require separate owner review and physical evidence. An approval to continue engineering **does not** authorise calling the live network audit, provisioning an account, deploying any files or distributing MediaPipe binaries.
+
 ### Gate B: Hand-ML preview
 
 **Not yet authorised or prepared for distribution.** Requires resolved exact runtime/model notices, approved vendor bundle, integrity checks, operator permission for external hosting and the full release security review. Only then test actual fingertip tracking on physical iPhone Safari using [the bench protocol](SAFARI_DEVICE_TEST.md), recording false completions, latency, inferred FPS, reload/start failures, camera revocation, battery and thermal observations.
