@@ -1,0 +1,22 @@
+{
+  "name": "ANIMATE — manual private iPhone baseline (NO ML)",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "forwardPorts": [],
+  "portsAttributes": {
+    "8765": {
+      "label": "ANIMATE operator-only baseline — keep PRIVATE",
+      "onAutoForward": "ignore",
+      "visibility": "private"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "remote.autoForwardPorts": false
+      }
+    }
+  }
+}
