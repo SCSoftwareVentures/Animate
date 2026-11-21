@@ -142,8 +142,8 @@ def validate_archive(path, expected_hashes):
             raise ValueError("Security policy changed")
         html = zip_file.read(VERIFY_HTML)
         script = zip_file.read(VERIFY_JS)
-        sri = "sha384-" + base64.b64encode(hashlib.sha384(script).digest())
-        if sri not in html:
+        sri = "sha384-" + base64.b64encode(hashlib.sha384(script).digest()).decode("ascii")
+        if sri.encode("ascii") not in html:
             raise ValueError("Verifier script SRI missing or mismatched")
         if b"__EXPECTED_APP_HASHES__" in script or b"__EXPECTED_HEADERS__" in script:
             raise ValueError("Verifier template not compiled")
