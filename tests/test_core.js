@@ -288,6 +288,47 @@ t('EVIDENCE: each customer segment has its own independent denominator', () => {
   assert.equal(summary.verified.cameraTesters, 2);
 });
 
+t('PRIVACY: deletion clears all historical ANIMATE keys, preserves unrelated site data', () => {
+  const data = new Map([
+    ['animate-validation-v1', 'old'], ['animate-validation-v05', 'old'],
+    ['animate-validation-v07', 'latest'], ['animate-validation', 'old-root'],
+    ['another-app-token', 'leave alone'], ['animate-demo-setting', 'leave alone']
+  ]);
+  const storage = {
+    get length() { return data.size; },
+    key(i) { return [...data.keys()][i] ?? null; },
+    getItem(k) { return data.get(k) ?? null; },
+    removeItem(k) { data.delete(k); }
+  };
+  const outcome = C.deleteLocalResearchData(storage);
+  assert.deepEqual(outcome, {ok: true, removed: 4, failed: 0});
+  assert.deepEqual([...data.keys()], ['another-app-token', 'animate-demo-setting']);
+  assert.deepEqual(C.deleteLocalResearchData(storage), {ok: true, removed: 0, failed: 0});
+});
+t('PRIVACY: blocked storage reports failure instead of claiming deletion', () => {
+  const denied = { get length() { throw Error('SecurityError'); } };
+  const outcome = C.deleteLocalResearchData(denied);
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.removed, 0);
+  assert(outcome.failed >= 1);
+});
+t('PRIVACY: partial deletion continues and reports remaining record', () => {
+  const data = new Map([['animate-validation-v1', 'a'], ['animate-validation-v07', 'b'],
+    ['unrelated', 'keep']]);
+  const storage = {
+    get length() { return data.size; },
+    key(i) { return [...data.keys()][i] ?? null; },
+    getItem(k) { return data.get(k) ?? null; },
+    removeItem(k) { if (k === 'animate-validation-v1') throw Error('Denied');
+      data.delete(k); }
+  };
+  const result = C.deleteLocalResearchData(storage);
+  assert.deepEqual(result, {ok: false, removed: 1, failed: 1});
+  assert(data.has('animate-validation-v1'));
+  assert(!data.has('animate-validation-v07'));
+  assert(data.has('unrelated'));
+});
+
 t('v0.7 authenticates hand event provenance within an export, not against an external issuer', () => {
   const model='mediapipe-hand-landmarker-float16-v1';
   const startHand={...start(),detector:'hand',model};
