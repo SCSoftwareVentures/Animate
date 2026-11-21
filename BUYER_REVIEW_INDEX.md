@@ -50,3 +50,8 @@ The latest verified engineering candidate is draft [PR #28](https://github.com/S
 ## Netlify private screenshot side-channel — verified security blocker
 
 An actual $0 authenticated, isolated Netlify Drop deployment was tested: all 64 anonymous production and immutable-deploy GET/HEAD access probes returned 401, yet a provider-generated deployment screenshot URL returned a publicly cacheable image containing the **private harmless test marker**. This does not constitute source-code/participant-data leakage because only the harmless canary was uploaded. [HOSTING_SCREENSHOT_SIDE_CHANNEL_GATE.md](HOSTING_SCREENSHOT_SIDE_CHANNEL_GATE.md) documents the failure and the offline neutral-root thumbnail experiment. **No ANIMATE deployment or iPhone camera test is authorised or validated.**
+
+
+## Single owner-only iPhone technical validation candidate
+
+See [OPERATOR_IPHONE_PREVIEW_ACCEPTANCE.md](OPERATOR_IPHONE_PREVIEW_ACCEPTANCE.md) and \`tools/build_operator_preview.py\`: offline, exact-commit-verified no-ML ANIMATE preview with a neutral root and a nested \`/operator-preview/\` app. Full CI and explicit owner upload authorisation required. This does **not** address the missing independent iPhone performance measurements, ML license gate or commercial demand evidence. The screenshot side-channel risk remains disclosed and unsolved.

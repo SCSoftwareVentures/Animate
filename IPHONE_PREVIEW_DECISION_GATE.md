@@ -89,3 +89,8 @@ This is a deliberately bounded preflight: a passing test would not certify all p
 ## Exact CSP and camera-permission response gate
 
 The hosted-preview auditor must reject a response that merely *mentions* `connect-src 'self'` while also allowing external network targets or permissive inline scripts. Its offline preflight compares every CSP directive's complete source list against the exact reviewed baseline server policy; extra sources, duplicate directives, wildcard form targets, and weaker camera Permissions-Policy values fail. It also refuses contradictory `Cache-Control: public, no-store`. These are security-policy checks, **not a guarantee** that camera frames never leave an owner-approved host if the upstream site, browser or hosting provider itself is compromised. Physical iPhone testing and a live host review remain blocked until separately authorised.
+
+
+## November 2026 operator-only model-free candidate
+
+An authenticated Netlify Free project has been created and tested: 64/64 first-canary and 56/56 second-canary anonymous requests returned 401, but an unauthenticated CDN deployment screenshot revealed the first private harmless page; the second neutral root screenshot was public but contained no nested fake marker. The [operator-only acceptance plan](OPERATOR_IPHONE_PREVIEW_ACCEPTANCE.md) offers an exact-source six-file baseline nested under a neutral root, with **no** MediaPipe distribution, participant data or secrets. This does not establish complete screenshot confidentiality or constitute approval to upload the actual ANIMATE files; a separate owner decision and live header/asset audit are required before physical Safari camera use.
