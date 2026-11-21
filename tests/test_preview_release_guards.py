@@ -73,7 +73,7 @@ def main():
           "if: github.ref == 'refs/heads/main'" in yaml)
     check("ML model release is blocked while exact rights approval is absent",
           REVIEWED_LICENSE_SHA256 is None)
-    print("PASS 12/12 no-model preview and public-release guard tests", flush=True)
+    print("PASS 13/13 no-model preview and public-release guard tests", flush=True)
 
 
 if __name__ == "__main__":
