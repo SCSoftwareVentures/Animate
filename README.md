@@ -2,7 +2,7 @@
 
 **Status: consolidated draft engineering candidate — not approved for public deployment, participant recruitment, model redistribution or sale as a released end-user product.**
 
-**Start here for review:** [Acquisition and integration dossier](ACQUISITION_REVIEW_DOSSIER.md). The cumulative source is being reviewed as one proposed change against `main`; the earlier stacked draft PRs remain engineering history. Technical verification and commercial readiness are separate gates.
+**Start here for review:** [Acquisition and integration dossier](ACQUISITION_REVIEW_DOSSIER.md). A separate [no-charge iPhone preview option](ZERO_COST_IPHONE_PREVIEW.md) packages a model-free offline ZIP but does not deploy it or activate provider billing. The cumulative source is being reviewed as one proposed change against `main`; the earlier stacked draft PRs remain engineering history. Technical verification and commercial readiness are separate gates.
 
 The preceding exact engineering commit `1c6b1eb145352e55f2a8ee02ef35bcf0b633314c` passed GitHub Actions run #25 (147 unit/security/licensing checks and 107 browser checks). **That is historical evidence, not verification of a later consolidated commit.** Inspect the consolidated PR's own CI status before approving any merge.
 
@@ -47,6 +47,10 @@ python tests/e2e.py /usr/bin/chromium
 4. Inspect `site/vendor/mediapipe/SHA256SUMS.txt` and `PROVENANCE.txt`, run `python tests/check_release.py --publish` and all the tests, including GitHub full-origin CI. Check the pinned model and WASM file paths against actual package layout.
 5. On an operator-owned iPhone over private HTTPS, run the [Safari device checks](SAFARI_DEVICE_TEST.md) for startup, camera permissions, outages, accuracy, accessibility, and thermal behavior.
 6. Record new integration/device/licence evidence on the consolidated review PR, retaining historical draft PRs for traceability. **Do not merge, deploy, recruit participants, redistribute model assets or charge customers** without owner approval and successful gates.
+
+## Integrated draft controls and $0 packaging
+
+An operator-only zone probe now counts absent/expected/wrong-zone results under self-labelled conditions, with per-second frame coverage required; this is **not independently verified accuracy**. The $0 preview ZIP remains offline and has **no built-in authentication**. A hosting dashboard setting marked Private cannot certify private site asset delivery. No distribution is authorised.
 
 ## Scope and risk
 

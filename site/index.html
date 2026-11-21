@@ -96,6 +96,15 @@
       <p id="deviceBenchStatus" class="fine muted" role="status">Not measured.</p>
       <pre id="deviceBenchReport" aria-label="Anonymous camera performance measurements"></pre>
     </section>
+    <section aria-label="Operator-labelled negative and zone controls">
+      <h2>10-second absence and zone controls</h2>
+      <p class="fine muted">Operator-only, one manually labelled scene per trial. Move the target entirely out of view for an absence trial; or keep one target within the selected zone. Count unexpected dwell activations and missed zone observations. These numeric results are a proxy, not independently verified accuracy or actual challenge completions. No frames or coordinates are saved.</p>
+      <label for="zoneControlExpected">Condition you will maintain for 10 seconds</label>
+      <select id="zoneControlExpected"><option value="absent">No target visible (negative control)</option><option value="left">Target in left zone</option><option value="middle">Target in middle zone</option><option value="right">Target in right zone</option></select>
+      <div class="actions"><button id="zoneControlStart">Start 10-second control</button><button id="zoneControlFinish" disabled>Stop / mark incomplete</button><button id="zoneControlCopy">Copy control counts</button></div>
+      <p id="zoneControlStatus" role="status" class="fine muted">No operator-labelled control measured.</p>
+      <pre id="zoneControlReport" aria-label="Self-labelled zone-control count report"></pre>
+    </section>
     <p class="fine muted">Raw diagnostic output below includes technical browser details. Do not share it publicly.</p>
     <pre id="diagnosticOutput"></pre><button id="dbgcopy">Copy raw diagnostics</button>
   </details>

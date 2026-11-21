@@ -177,6 +177,10 @@ def main():
                 check("WebKit cannot fake a device sample without an actual live camera",
                       "Measurement blocked:" in page.locator("#deviceBenchStatus").inner_text() and
                       json.loads(page.locator("#deviceBenchReport").inner_text())["status"] == "not_started")
+                page.click("#zoneControlStart")
+                check("WebKit rejects operator-labelled camera controls without live frames",
+                      "Control blocked:" in page.locator("#zoneControlStatus").inner_text() and
+                      json.loads(page.locator("#zoneControlReport").inner_text())["status"] == "not_started")
                 check("no unexpected third-party network requests", not external_requests)
                 check("no JavaScript errors on WebKit", not errors)
                 context.close()
@@ -186,7 +190,7 @@ def main():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
-    print("PASS %s WebKit-on-Linux preflight checks" % ("18/18 baseline" if args.baseline else "16/16"), flush=True)
+    print("PASS %s WebKit-on-Linux preflight checks" % ("19/19 baseline" if args.baseline else "17/17"), flush=True)
 
 
 if __name__ == "__main__":

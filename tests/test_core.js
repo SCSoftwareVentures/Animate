@@ -571,4 +571,127 @@ t('DEVICE COVERAGE: nonmonotonic or forged timing invalidates the quality gate',
   assert.equal(r.evidenceType,'UNVERIFIED_LOCAL_PERFORMANCE_PROXY');
 });
 
+
+t('ZONE CONTROL: manually labelled absence with no detections is a complete negative-control observation, not accuracy', () => {
+  const z = C.createZoneControlProbe();
+  z.begin(0, 'absent', 'colour');
+  for (let i = 1; i <= 100; i++) z.add(null, i * 100);
+  const r = z.snapshot(10000);
+  assert.equal(r.complete, true);
+  assert.equal(r.coverage.adequate, true);
+  assert.equal(r.detectedFrames, 0);
+  assert.equal(r.unexpectedDwellEvents, 0);
+  assert.equal(r.independentlyVerified, false);
+  assert.equal(r.userDemandMeasured, false);
+});
+t('ZONE CONTROL: persistent detection in an absent-labelled scene registers unexpected dwell proxies', () => {
+  const z = C.createZoneControlProbe();
+  z.begin(0, 'absent', 'foreground');
+  for (let i = 1; i <= 100; i++) z.add({x:0.5,y:0.5}, i*100);
+  const r = z.snapshot(10000);
+  assert.equal(r.complete, true);
+  assert.equal(r.detectedFrames,100);
+  assert(r.unexpectedDwellEvents > 0);
+  assert.equal(r.expectedDwellEvents,0);
+  assert.equal(r.evidenceType,'OPERATOR_LABELLED_PROXY_NOT_VERIFIED_GROUND_TRUTH');
+});
+t('ZONE CONTROL: operator-labelled correct and wrong zones remain separate', () => {
+  const correct = C.createZoneControlProbe();
+  correct.begin(0,'left','colour');
+  for(let i=1;i<=100;i++)correct.add({x:.1,y:.5},i*100);
+  const a=correct.snapshot(10000);
+  assert.equal(a.complete,true);
+  assert.equal(a.correctZoneFrames,100);
+  assert.equal(a.wrongZoneFrames,0);
+  assert(a.expectedDwellEvents>0);
+  assert.equal(a.unexpectedDwellEvents,0);
+
+  const wrong = C.createZoneControlProbe();
+  wrong.begin(0,'left','colour');
+  for(let i=1;i<=100;i++)wrong.add({x:.85,y:.5},i*100);
+  const b=wrong.snapshot(10000);
+  assert.equal(b.complete,true);
+  assert.equal(b.correctZoneFrames,0);
+  assert.equal(b.wrongZoneFrames,100);
+  assert(b.unexpectedDwellEvents>0);
+});
+t('ZONE CONTROL: sparse or interrupted sampling is not counted as a valid ten-second trial', () => {
+  const sparse = C.createZoneControlProbe();
+  sparse.begin(0,'absent','colour');
+  sparse.add(null,100);
+  sparse.add(null,5100);
+  sparse.add(null,10000);
+  const s=sparse.snapshot(10000);
+  assert.equal(s.status,'insufficient_coverage');
+  assert.equal(s.complete,false);
+  assert(s.coverage.maxGapMs > 2500);
+
+  const interrupted=C.createZoneControlProbe();
+  interrupted.begin(50,'middle','foreground');
+  interrupted.add({x:.5,y:.5},150);
+  interrupted.finish(250,'interrupted');
+  assert.equal(interrupted.snapshot(10000).status,'interrupted');
+  assert.equal(interrupted.snapshot(10000).complete,false);
+  assert.equal(interrupted.active(),false);
+});
+t('ZONE CONTROL: rejected timestamps and manual stops cannot manufacture adequate coverage', () => {
+  const z=C.createZoneControlProbe(3000);
+  assert.throws(()=>z.begin(0,'unknown','colour'));
+  assert.throws(()=>z.begin(0,'absent','unknown'));
+  z.begin(0,'absent','hand');
+  z.add(null,100);
+  z.add(null,100);
+  for(let i=2;i<=30;i++)z.add(null,i*100);
+  const r=z.snapshot(3000);
+  assert.equal(r.complete,false);
+  assert.equal(r.status,'insufficient_coverage');
+  assert.equal(r.coverage.rejectedSamples,1);
+  z.reset();
+  z.begin(0,'right','colour');
+  z.add({x:.9,y:.5},100);
+  const early=z.finish(200,'manual');
+  assert.equal(early.complete,false);
+  assert.equal(early.status,'manual');
+});
+t('ZONE CONTROL: output is bounded numeric-only and excludes coordinates, video and participant IDs', () => {
+  const z=C.createZoneControlProbe();
+  z.begin(0,'right','colour');
+  for(let i=1;i<=100;i++)z.add({x:.9,y:.25,privateToken:'LEAK_ME'},i*100);
+  const report=z.snapshot(10000);
+  const encoded=JSON.stringify(report);
+  assert(encoded.length<1800);
+  assert(!encoded.includes('LEAK_ME'));
+  for(const field of ['userAgent','participantId','id','frame','coordinates','position']) {
+    assert(!Object.hasOwn(report,field),field);
+  }
+});
+
+
+t('ZONE CONTROL: ambiguous regions are counted without becoming detected points or dwell activations', () => {
+  const z=C.createZoneControlProbe(3000);
+  z.begin(0,'absent','foreground');
+  z.add({ambiguous:true,x:.5,y:.5},100);
+  for(let i=2;i<=30;i++)z.add(null,i*100);
+  const report=z.snapshot(3000);
+  assert.equal(report.status,'timed');
+  assert.equal(report.complete,true);
+  assert.equal(report.ambiguousFrames,1);
+  assert.equal(report.detectedFrames,0);
+  assert.equal(report.undetectedFrames,30);
+  assert.equal(report.unexpectedDwellEvents,0);
+});
+
+t('ZONE COVERAGE: an early frame burst cannot hide sparse later seconds', () => {
+  const z=C.createZoneControlProbe(3000);
+  z.begin(0,'absent','colour');
+  for(let i=1;i<=100;i++)z.add(null,i*9);
+  z.add(null,1200);z.add(null,2200);z.add(null,3000);
+  const result=z.snapshot(3000);
+  assert.equal(result.status,'insufficient_coverage');
+  assert.equal(result.complete,false);
+  assert.equal(result.coverage.sampledSeconds,3);
+  assert(result.coverage.secondsWithThreeFreshFrames<3);
+});
+
+
 console.log('\nPASS ' + passed + ' tests');
