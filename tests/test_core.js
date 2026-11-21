@@ -812,4 +812,27 @@ t('OPERATOR PACKET: forged complete coverage with rejected frames or large gaps 
   assert.equal(recorder.summary().zoneTrials,1);
 });
 
+
+t('OPERATOR PACKET: failed trial capture invalidates every previously recorded sample', () => {
+  const p=C.createOperatorPacketRecorder();
+  p.begin('e'.repeat(40),'colour',true,true);
+  const d=C.createDeviceBench();
+  d.begin(0,'colour');
+  d.noteLatency(8); d.noteWindow(1000,20,60);
+  d.finish(1500,'manual');
+  p.add('performance','ordinary',d.snapshot(1500));
+  assert.equal(p.summary().performanceTrials,1);
+  assert.equal(p.packet().performanceTrials.length,1);
+  p.invalidate();
+  assert.equal(p.summary().integrityOk,false);
+  assert.throws(()=>p.packet(),/omitted or unvalidated/);
+  assert.throws(()=>p.add('performance','ordinary',d.snapshot(1500)),/integrity is blocked/);
+  assert.throws(()=>p.begin('e'.repeat(40),'colour',true,true),/Reset/);
+  p.reset();
+  assert.equal(p.summary().integrityOk,true);
+  assert.equal(p.summary().performanceTrials,0);
+  p.begin('f'.repeat(40),'foreground',true,true);
+  assert.equal(p.packet().detector,'foreground');
+});
+
 console.log('\nPASS ' + passed + ' tests');

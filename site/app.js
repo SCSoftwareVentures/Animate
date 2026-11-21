@@ -652,11 +652,17 @@ function refreshPacketSummary(message) {
   $('packetCommit').disabled = s.configured;
   $('packetPhysical').disabled = s.configured;
   $('packetRegistered').disabled = s.configured;
-  $('packetExport').disabled = !s.configured || (!s.performanceTrials && !s.zoneTrials);
+  $('packetExport').disabled = !s.configured || !s.integrityOk ||
+    (!s.performanceTrials && !s.zoneTrials);
   $('packetCopy').disabled = $('packetExport').disabled;
-  $('packetReset').disabled = !s.configured;
+  $('packetReset').disabled = !s.configured || packetDevicePending || packetZonePending ||
+    deviceBench.active() || zoneControl.active();
   $('packetSummary').textContent = JSON.stringify(s, null, 2);
   if (message) $('packetStatus').textContent = message;
+  else if (s.configured && !s.integrityOk) {
+    $('packetStatus').textContent =
+      'EVIDENCE BLOCKED: an attempted measurement was lost or rejected. Discard the packet and restart.';
+  }
 }
 
 function recordPacketTrial(kind, report) {
@@ -669,9 +675,12 @@ function recordPacketTrial(kind, report) {
   else packetZonePending = false;
   try {
     packetRecorder.add(kind, light, report);
-    refreshPacketSummary('Trial recorded locally (including failures). Export before leaving Safari.');
-  } catch (error) {
-    refreshPacketSummary('Packet capture rejected: ' + String(error?.message || error));
+    refreshPacketSummary('Trial recorded in RAM (including failed attempts). Export and verify it before leaving Safari.');
+  } catch (_) {
+    // A rejected measurement MUST invalidate the entire packet. Otherwise the
+    // operator could unintentionally export a selective subset of successes.
+    packetRecorder.invalidate();
+    refreshPacketSummary('EVIDENCE BLOCKED: a measurement was rejected. This packet cannot be exported. Discard it and restart the protocol.');
   }
 }
 
@@ -835,7 +844,10 @@ $('share').addEventListener('click', async () => {
 });
 $('export').addEventListener('click', exportRecord);
 $('reset').addEventListener('click', () => {
-  if (!confirm('Delete your local ANIMATE records on this device? Previously exported copies are not deleted.')) return;
+  const pendingCount = packetRecorder.summary().performanceTrials +
+    packetRecorder.summary().zoneTrials;
+  if (!confirm('Delete local ANIMATE records and discard ' + pendingCount +
+    ' RAM-only operator trials? Previously exported copies are not deleted.')) return;
   stopCamera();
   deviceBench.reset(); refreshDeviceBench();
   zoneControl.reset(); refreshZoneControl();
@@ -897,7 +909,13 @@ if (DEBUG) {
     }
   });
   $('packetReset').addEventListener('click', () => {
-    if (!confirm('Discard all unsaved operator evidence in memory?')) return;
+    if (packetDevicePending || packetZonePending || deviceBench.active() || zoneControl.active()) {
+      refreshPacketSummary('Discard blocked while a camera measurement is running. End the trial first.');
+      return;
+    }
+    const s = packetRecorder.summary();
+    if (!confirm('Discard ' + (s.performanceTrials + s.zoneTrials) +
+        ' recorded operator trials from RAM? Any unsaved or unverified downloads cannot be restored.')) return;
     packetRecorder.reset(); packetDevicePending = false; packetZonePending = false;
     refreshPacketSummary('Operator packet discarded. Previously exported copies are unaffected.');
   });
@@ -952,6 +970,7 @@ if (DEBUG) {
     }
     zoneControl.begin(performance.now(), $('zoneControlExpected').value, detectorKind);
     refreshZoneControl();
+    refreshPacketSummary();
   });
   $('zoneControlFinish').addEventListener('click', () => {
     if (zoneControl.active()) zoneControl.finish(performance.now(), 'manual');
@@ -992,6 +1011,7 @@ if (DEBUG) {
     }
     deviceBench.begin(performance.now(), detectorKind);
     refreshDeviceBench();
+    refreshPacketSummary();
   });
   $('deviceBenchFinish').addEventListener('click', () => {
     deviceBench.finish(performance.now(), 'manual');
