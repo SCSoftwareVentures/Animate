@@ -20,7 +20,16 @@ check('invalid or out-of-range landmark rejected',()=>{assert.equal(pointFromRes
  check('inference metrics separated',()=>{assert.equal(detector.metrics().inferenceCount,2);assert.equal(detector.metrics().model,'mediapipe-hand-landmarker-float16-v1');});
  check('backwards timestamp stops scoring',()=>assert.throws(()=>detector.detect({},205),/timestamp/));
  check('runtime closed after invalid timestamp',()=>{assert.equal(detector.ready,false);assert.equal(closes,1);});
- check('a stopped in-flight model load cannot activate',()=>{});
+ let obsoleteLoads=0;
+ const cancelledBeforeLoad=createHandDetector({loader:()=>{
+   obsoleteLoads++; return {detectForVideo:()=>({landmarks:[]}),close:()=>closes++};
+ }});
+ const cancelledBeforeLoadPromise=cancelledBeforeLoad.start();
+ cancelledBeforeLoad.stop();
+ assert.equal(await cancelledBeforeLoadPromise,false);
+ check('same-turn cancellation prevents obsolete model initialization',()=>{
+   assert.equal(obsoleteLoads,0);assert.equal(cancelledBeforeLoad.ready,false);
+ });
  let resolve;
  const inFlight=createHandDetector({loader:()=>new Promise(r=>{resolve=r;})});
  const promise=inFlight.start();await Promise.resolve();inFlight.stop(); resolve({detectForVideo:()=>{},close:()=>closes++});

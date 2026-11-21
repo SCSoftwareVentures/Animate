@@ -221,8 +221,22 @@ function grabFrame() {
   drawCover($('video'), ac, 160, 120);
 }
 async function preventSleep() {
-  try { if (navigator.wakeLock?.request) wakeLock = await navigator.wakeLock.request('screen'); }
-  catch (_) { /* Optional only. Tested iPhone behaviour unknown. */ }
+  // A pending permission/grant may resolve after Stop, pagehide or a new camera session.
+  // Releasing that late sentinel prevents a hidden wake lock and unnecessary battery drain.
+  const generation = frameWatcherGeneration;
+  try {
+    if (!navigator.wakeLock?.request) return;
+    const granted = await navigator.wakeLock.request('screen');
+    if (!granted || typeof granted.release !== 'function') return;
+    if (generation !== frameWatcherGeneration || !stream || document.hidden) {
+      try { await granted.release(); } catch (_) { /* Best-effort cleanup. */ }
+      return;
+    }
+    if (wakeLock && wakeLock !== granted) {
+      try { Promise.resolve(wakeLock.release()).catch(() => {}); } catch (_) {}
+    }
+    wakeLock = granted;
+  } catch (_) { /* Optional only. Tested iPhone behaviour unknown. */ }
 }
 function stopCamera() {
   if (deviceBench.active()) {

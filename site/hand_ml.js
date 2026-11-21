@@ -49,7 +49,11 @@ function createHandDetector({loader = loadSameOrigin, minIntervalMs = 95, loadTi
     const mine = generation;
     let timer;
     // If the deadline wins, the still-pending loader must close any late engine.
-    const loading = Promise.resolve().then(loader).then(loaded => {
+    const loading = Promise.resolve().then(() => {
+      // Stop may happen synchronously before this microtask: never start an obsolete ML load.
+      if (mine !== generation) return null;
+      return loader();
+    }).then(loaded => {
       if (mine !== generation) { try { loaded?.close?.(); } catch (_) {} return null; }
       return loaded;
     });

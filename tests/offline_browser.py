@@ -203,6 +203,28 @@ with sync_playwright() as p:
     check('cancelled camera start has no JavaScript errors', not errs, str(errs))
     c.close();b.close()
 
+    # A wake-lock grant can arrive after a user has stopped or dismissed the camera.
+    # Never retain such a sentinel: otherwise mobile battery life is affected.
+    b,c,pg,errs=prepare(p,camera=True)
+    enrol(pg)
+    pg.evaluate('''() => {
+      window.__lateWakeReleased = false;
+      Object.defineProperty(navigator, 'wakeLock', {configurable:true,value:{
+        request:()=>new Promise(resolve=>{window.__grantWakeLock=resolve;})
+      }});
+    }''')
+    pg.click('#camera')
+    pg.wait_for_function("typeof window.__grantWakeLock === 'function'", timeout=5000)
+    pg.click('#stop')
+    pg.evaluate('''() => window.__grantWakeLock({
+      release:()=>{window.__lateWakeReleased=true;return Promise.resolve();}
+    })''')
+    pg.wait_for_function("window.__lateWakeReleased === true", timeout=5000)
+    check('a late wake-lock grant is released after camera stop',
+          pg.evaluate("window.__lateWakeReleased && wakeLock === null && stream === null"))
+    check('late wake-lock cleanup has no JavaScript runtime errors',not errs,str(errs))
+    c.close();b.close()
+
     b,c,pg,errs=prepare(p,camera=True)
     enrol(pg)
     pg.select_option('#detector','foreground')
