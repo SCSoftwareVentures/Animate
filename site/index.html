@@ -89,6 +89,19 @@
     <p id="recordStatus" class="fine muted" role="status"></p>
   </section>
   <details id="dbgbox" hidden><summary>Engineering diagnostics (?debug=1)</summary>
+    <section aria-label="Private iPhone operator evidence packet">
+      <h2>Operator evidence packet — on-device only</h2>
+      <p class="fine muted">Optional debug-only packet for a future authorised physical iPhone Safari test. This is a self-report, NOT verified device provenance, accuracy or demand. Nothing is uploaded or added to participant records. Reports remain in memory until you explicitly export or reset; closing Safari loses unsaved trials.</p>
+      <label for="packetCommit">Reviewed Git commit (40 lowercase hexadecimal characters; self-declared)</label>
+      <input id="packetCommit" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="40-character source commit SHA">
+      <label for="packetLight">Lighting condition for the next trial</label>
+      <select id="packetLight"><option value="bright">Bright</option><option value="ordinary" selected>Ordinary indoor</option><option value="dim">Dim</option></select>
+      <label><input id="packetPhysical" type="checkbox"> I am operating an actual physical iPhone (unverified claim).</label>
+      <label><input id="packetRegistered" type="checkbox"> I registered my testing protocol before collecting these trials (unverified claim).</label>
+      <div class="actions"><button id="packetBegin">Begin new packet</button><button id="packetExport" disabled>Export private JSON packet</button><button id="packetCopy" disabled>Copy packet JSON</button><button id="packetReset" disabled>Discard packet</button></div>
+      <p id="packetStatus" class="fine muted" role="status">No operator packet started. Configure it before measuring.</p>
+      <pre id="packetSummary" aria-label="Anonymous operator trial counts"></pre>
+    </section>
     <section aria-label="Physical device performance preflight">
       <h2>60-second camera performance sample</h2>
       <p class="fine muted">Operator-controlled numerical measurement, held in memory only. Start a live camera first. This does not store or upload video frames, coordinates, record IDs or device identifiers. A complete sample is not proof of recognition accuracy, temperature or battery life.</p>

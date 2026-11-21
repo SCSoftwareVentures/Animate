@@ -280,6 +280,13 @@ with sync_playwright() as p:
     b,c,pg,errs=prepare(p,camera=True,debug=True)
     enrol(pg)
     pg.locator('#dbgbox summary').click()
+    pg.fill('#packetCommit','a'*40)
+    pg.check('#packetPhysical')
+    pg.check('#packetRegistered')
+    pg.click('#packetBegin')
+    check('operator evidence packet requires physical and preregistration self-claims',
+          'Packet configured' in pg.locator('#packetStatus').inner_text() and
+          pg.locator('#packetCommit').is_disabled())
     pg.click('#deviceBenchStart')
     check('debug device benchmark cannot start without live camera',
           'Measurement blocked:' in pg.locator('#deviceBenchStatus').inner_text() and
@@ -317,6 +324,26 @@ with sync_playwright() as p:
           zone_report['independentlyVerified'] is False and
           zone_report['userDemandMeasured'] is False and
           not any('ZONE_CONTROL' in json.dumps(e) for e in record(pg)['events']))
+    with pg.expect_download() as packet_download:
+        pg.click('#packetExport')
+    with open(packet_download.value.path()) as fh:
+        evidence_packet=json.load(fh)
+    check('operator-only iPhone packet download contains only numeric reports and self-declarations',
+          evidence_packet['schema']=='ANIMATE_IPHONE_OPERATOR_PACKET_V1' and
+          evidence_packet['sourceCommit']=='a'*40 and
+          evidence_packet['detector']=='colour' and
+          len(evidence_packet['performanceTrials'])==1 and
+          len(evidence_packet['zoneTrials'])==1 and
+          evidence_packet['performanceTrials'][0]['report']['status']=='manual' and
+          evidence_packet['zoneTrials'][0]['report']['status']=='manual' and
+          'userAgent' not in json.dumps(evidence_packet) and
+          'participantId' not in json.dumps(evidence_packet))
+    check('packet is separate from existing participant research record',
+          not any('ANIMATE_IPHONE_OPERATOR_PACKET_V1' in json.dumps(e)
+                  for e in record(pg)['events']))
+    pg.once('dialog',lambda dialog: dialog.accept())
+    pg.click('#packetReset')
+    check('reset clears operator packet from memory',pg.locator('#packetExport').is_disabled())
     check('debug device sampling and negative controls have no JavaScript errors',not errs,str(errs))
     c.close();b.close()
 

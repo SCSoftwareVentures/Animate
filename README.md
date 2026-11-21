@@ -48,6 +48,10 @@ python tests/e2e.py /usr/bin/chromium
 5. On an operator-owned iPhone over private HTTPS, run the [Safari device checks](SAFARI_DEVICE_TEST.md) for startup, camera permissions, outages, accuracy, accessibility, and thermal behavior.
 6. Record new integration/device/licence evidence on the consolidated review PR, retaining historical draft PRs for traceability. **Do not merge, deploy, recruit participants, redistribute model assets or charge customers** without owner approval and successful gates.
 
+## Operator-only evidence packet in iPhone Safari (draft)
+
+The `?debug=1` screen includes a RAM-only collection tool for authorised physical-device trials. It requires explicit self-declarations, records complete and incomplete 60-second and 10-second samples separately, and can export a private JSON packet directly via Safari without an app, server, cloud API or computer. All provenance and accuracy claims remain unverified. This is not an approved deployment: [future operating protocol](IPHONE_EVIDENCE_AUDIT_PROTOCOL.md).
+
 ## Offline iPhone evidence audit (unverified operator reports)
 
 The optional offline validator `tools/audit_iphone_evidence.py` rejects incomplete, contradictory or personally identifying data fields in future self-reported camera-trial packets. It counts all attempts and never certifies device authenticity or recognition accuracy. [Protocol and explicit limits](IPHONE_EVIDENCE_AUDIT_PROTOCOL.md).

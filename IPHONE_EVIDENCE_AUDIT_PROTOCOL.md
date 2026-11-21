@@ -15,6 +15,10 @@ The review packet contains only the approved exact-field app summaries. Its sour
 - Obtain explicit permission for a camera test under the device protocol; no model/WASM distribution is permitted.
 - Before testing, register one method (\`colour\` or \`foreground\`) and the lighting conditions \`bright\`, \`ordinary\`, \`dim\`. Each trial is one independent attempt. **Include failed or interrupted attempts**, even if subsequently repeated.
 
+## On-device collection interface (draft implementation)
+
+After a separately authorised secure HTTPS preview exists, open `?debug=1` directly in iPhone Safari. Under **Operator evidence packet — on-device only**, enter the reviewed 40-character Git SHA and explicitly confirm the two self-declarations **before** any trial. Use one model-free detector per packet. Choose a lighting condition before each attempt; the app freezes that label when a measurement starts. A completed or interrupted 60-second performance sample or 10-second zone control is then added to the RAM-only packet automatically. Individual attempts are never promoted to physical-device verification. Use **Export private JSON packet** (or explicit clipboard copy) before leaving Safari. Browser closure/reload or **Discard packet** loses unsaved measurements. The packet does not include the local participant ID, browser user-agent or camera frames, and is not uploaded automatically. The JSON is a private self-report and must not be committed to a public GitHub repository.
+
 ## Packet shape (future private use only)
 
 One local JSON object with precisely:
