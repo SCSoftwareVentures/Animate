@@ -27,6 +27,8 @@ jobs:
         run: node tests/test_core.js && node tests/test_foreground.js && node tests/test_hand_ml.js
       - name: Audit runtime notice gate with malicious/adjacent-release fixtures
         run: python tests/test_runtime_rights.py
+      - name: Test model-free preview and public-release fail-closed gates
+        run: python tests/test_preview_release_guards.py
       - name: Synthetic recognition diagnostic (informational; not a real-device pass gate)
         run: node tests/recognition_matrix.js --summary
       - name: Install browser test dependencies
@@ -35,6 +37,12 @@ jobs:
           python -m playwright install --with-deps chromium webkit
       - name: Run WebKit preflight (Linux engine, not iPhone Safari)
         run: python tests/test_webkit_smoke.py
+      - name: Test model-free baseline preview over WebKit; do not upload/deploy
+        run: |
+          baseline_dir="$(mktemp -d "$RUNNER_TEMP/animate-noml.XXXXXX")"
+          trap 'rm -rf -- "$baseline_dir"' EXIT
+          python tools/build_baseline_preview.py --output "$baseline_dir/candidate"
+          python tests/test_webkit_smoke.py --site-dir "$baseline_dir/candidate/site" --baseline
       - name: Run offline browser regression suite
         run: python tests/offline_browser.py && python tests/test_hand_browser.py
       - name: Run synthetic camera browser suite over localhost
