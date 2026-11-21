@@ -416,6 +416,88 @@ function summarize(records, ledger = []) {
 }
 
 /**
+ * Voluntary, RAM-only, fixed-duration camera performance sample for an iPhone bench.
+ * No user agent, participant ID, timestamps, coordinates, video or model outputs.
+ * FPS is analysed-frame throughput, not guaranteed camera sensor FPS.
+ */
+function createDeviceBench(durationMs = 60000) {
+  if (!Number.isInteger(durationMs) || durationMs < 1000 || durationMs > 120000) {
+    throw Error('Invalid diagnostic duration');
+  }
+  let started = null, ended = null, detector = null, outcome = 'not_started';
+  let windows = [], inference = [], totalCalls = 0, latencyOverLimit = 0, interruptions = 0;
+  const round = n => Math.round(n * 10) / 10;
+  const quantile = (values, p) => {
+    if (!values.length) return null;
+    const sorted = values.slice().sort((a, b) => a - b);
+    return round(sorted[Math.ceil(p * sorted.length) - 1]);
+  };
+  const distribution = values => ({
+    samples: values.length,
+    min: values.length ? round(Math.min(...values)) : null,
+    median: quantile(values, .5),
+    p95: quantile(values, .95),
+    max: values.length ? round(Math.max(...values)) : null
+  });
+  const active = () => started !== null && ended === null;
+  function reset() {
+    started = null; ended = null; detector = null; outcome = 'not_started';
+    windows = []; inference = []; totalCalls = 0; latencyOverLimit = 0; interruptions = 0;
+  }
+  function begin(now, method) {
+    if (!Number.isFinite(now) || now < 0 || !['colour', 'foreground', 'hand'].includes(method)) {
+      throw Error('Invalid diagnostic start');
+    }
+    reset(); started = now; detector = method; outcome = 'running';
+    return snapshot(now);
+  }
+  function finish(now, reason = 'manual') {
+    if (!active()) return snapshot(now);
+    if (!Number.isFinite(now) || now < started) throw Error('Invalid diagnostic stop');
+    if (!['manual', 'timed', 'camera_stopped', 'interrupted'].includes(reason)) {
+      throw Error('Invalid diagnostic result');
+    }
+    ended = Math.min(now, started + durationMs); outcome = reason;
+    return snapshot(now);
+  }
+  function noteWindow(now, analysedFps, rafFps) {
+    if (!active()) return;
+    if (![now, analysedFps, rafFps].every(Number.isFinite) ||
+        now < started || analysedFps < 0 || analysedFps > 240 ||
+        rafFps < 0 || rafFps > 240) return;
+    if (windows.length < 120) windows.push({analysedFps, rafFps});
+    if (now - started >= durationMs) finish(now, 'timed');
+  }
+  function noteLatency(ms) {
+    if (!active() || !Number.isFinite(ms) || ms < 0) return;
+    totalCalls++;
+    if (ms <= 120000 && inference.length < 4096) inference.push(ms);
+    else latencyOverLimit++;
+  }
+  function noteInterruption(now) {
+    if (!active()) return;
+    interruptions++;
+    finish(now, 'interrupted');
+  }
+  function snapshot(now) {
+    const elapsed = started === null ? 0 : Math.max(0,
+      Math.min(durationMs, (ended ?? (Number.isFinite(now) ? now : started)) - started));
+    return {
+      kind: 'ANIMATE_LOCAL_DEVICE_PERFORMANCE_SAMPLE', build: BUILD, detector,
+      status: outcome, complete: outcome === 'timed', plannedMs: durationMs,
+      observedMs: Math.round(elapsed), sampleWindows: windows.length,
+      analysedFps: distribution(windows.map(w => w.analysedFps)),
+      animationLoopFps: distribution(windows.map(w => w.rafFps)),
+      inferenceMs: distribution(inference), inferredFrames: totalCalls,
+      unmeasuredLatencySamples: latencyOverLimit, interruptions,
+      contents: 'Numeric performance only. No video, coordinates, IDs, user agent or network upload.',
+      limitations: 'A local self-test only; frame analysis FPS is not sensor FPS, and this is not recognition accuracy, thermal or battery evidence.'
+    };
+  }
+  return { begin, finish, reset, noteWindow, noteLatency, noteInterruption, snapshot, active };
+}
+
+/**
  * Remove only the ANIMATE research-data namespace across historical build versions.
  * Snapshot keys before deletion, since deleting while iterating shifts localStorage indices.
  * Report blocked/partial deletion instead of suggesting that a reset definitely succeeded.
@@ -450,7 +532,7 @@ function deleteLocalResearchData(storage) {
 const core = { BUILD, SCHEMA_VERSION, MAX_EVENTS, clamp, rgb2hsv, hueDist, sampleReference,
   skinLike, locate, createZoneTracker, localDay, dayDiff, modes, roles, sanitizeRecord, sanitizeLocalRecord, ledgerKey,
   recordMetrics, summarize, PROBE_FRAMES, probeColours, probeLights, probeBackgrounds,
-  probeExpected, createRecognitionProbe, calibrationCandidate, deleteLocalResearchData };
+  probeExpected, createRecognitionProbe, calibrationCandidate, deleteLocalResearchData, createDeviceBench };
 if (typeof module !== 'undefined' && module.exports) module.exports = core;
 else root.AnimateCore = core;
 })(typeof globalThis === 'undefined' ? this : globalThis);
