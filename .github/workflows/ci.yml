@@ -33,6 +33,8 @@ jobs:
         run: python tests/test_bench_https_security.py
       - name: Test hosted-preview zero-network access and asset integrity auditor
         run: python tests/test_hosted_preview_audit.py
+      - name: Verify optional manual Codespaces preview stays private by default
+        run: python tests/test_codespaces_preview.py
       - name: Synthetic recognition diagnostic (informational; not a real-device pass gate)
         run: node tests/recognition_matrix.js --summary
       - name: Install browser test dependencies
