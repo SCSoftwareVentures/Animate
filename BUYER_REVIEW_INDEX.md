@@ -45,3 +45,8 @@ What cannot be promised: a hosted product, model usage rights, a signed provenan
 ## Latest verification and gated follow-up
 
 The latest verified engineering candidate is draft [PR #28](https://github.com/SCSoftwareVentures/Animate/pull/28), exact commit \`59f0db2e433d99fd6f27e3fa0bb77c140c7292be\`, [CI #54 SUCCESS](https://github.com/SCSoftwareVentures/Animate/actions/runs/44883462371). Subsequent host-canary and commercial-preregistration changes live in a **separate unmerged draft successor** and require their own exact-head CI. See [HOSTING_RESEARCH_AND_OWNER_RUNBOOK.md](HOSTING_RESEARCH_AND_OWNER_RUNBOOK.md) and [COMMERCIAL_TEST_REGISTRATION.md](COMMERCIAL_TEST_REGISTRATION.md) for the next blocked evidence gates. No deployment or customer contact has been authorised.
+
+
+## Netlify private screenshot side-channel — verified security blocker
+
+An actual $0 authenticated, isolated Netlify Drop deployment was tested: all 64 anonymous production and immutable-deploy GET/HEAD access probes returned 401, yet a provider-generated deployment screenshot URL returned a publicly cacheable image containing the **private harmless test marker**. This does not constitute source-code/participant-data leakage because only the harmless canary was uploaded. [HOSTING_SCREENSHOT_SIDE_CHANNEL_GATE.md](HOSTING_SCREENSHOT_SIDE_CHANNEL_GATE.md) documents the failure and the offline neutral-root thumbnail experiment. **No ANIMATE deployment or iPhone camera test is authorised or validated.**
