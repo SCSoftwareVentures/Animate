@@ -112,29 +112,45 @@ function createZoneTracker(opt) {
   const hyst = opt?.hyst ?? 0.03;
   if (!Number.isFinite(dwell) || dwell <= 0 || !Number.isFinite(grace) || grace < 0 ||
       !Number.isFinite(hyst) || hyst < 0 || hyst >= 1 / 3) throw Error('Invalid tracker options');
-  let zone = null, since = null, lastSeen = null, lastUpdate = null;
+  let zone = null, confirmedMs = 0, lastSeen = null, lastUpdate = null, previousWasValid = false;
   function zoneOf(x, cur) {
     if (cur !== null && x >= cur / 3 - hyst && x < (cur + 1) / 3 + hyst) return cur;
     return Math.min(2, Math.max(0, Math.floor(x * 3)));
   }
-  function reset() { zone = null; since = null; lastSeen = null; lastUpdate = null; }
+  function reset() {
+    zone = null; confirmedMs = 0; lastSeen = null;
+    lastUpdate = null; previousWasValid = false;
+  }
   return {
     reset,
     update(p, now) {
       if (!Number.isFinite(now)) { reset(); return { zone: null, fired: null }; }
-      // A long scheduler gap is not continuous observed dwell, even if no null frames arrived.
+      // A long scheduler gap or backwards timestamp cannot be credited as dwell.
       if (lastUpdate !== null && (now < lastUpdate || now - lastUpdate > grace)) reset();
+      const delta = lastUpdate === null ? 0 : now - lastUpdate;
       lastUpdate = now;
       if (!p || !Number.isFinite(p.x) || p.x < 0 || p.x > 1 || p.ambiguous) {
-        if (lastSeen !== null && now - lastSeen > grace) { zone = null; since = null; }
+        // Keep prior progress only for a short dropout, but never credit the
+        // unobserved interval between a missing frame and a subsequent detection.
+        previousWasValid = false;
+        if (lastSeen !== null && now - lastSeen > grace) {
+          zone = null; confirmedMs = 0;
+        }
         return { zone, fired: null };
       }
-      // Do not retroactively count an interval where the object was unobserved.
-      if (lastSeen !== null && now - lastSeen > grace) { zone = null; since = null; }
+      if (lastSeen !== null && now - lastSeen > grace) {
+        zone = null; confirmedMs = 0; previousWasValid = false;
+      }
       const z = zoneOf(p.x, zone);
+      if (z !== zone) {
+        zone = z; confirmedMs = 0; previousWasValid = false;
+      }
+      // Only adjacent, successfully observed frames in the same zone accrue
+      // dwell time. An explicit null/ambiguous frame interrupts accrual.
+      if (previousWasValid) confirmedMs += delta;
       lastSeen = now;
-      if (z !== zone || since === null) { zone = z; since = now; }
-      if (now - since >= dwell) { since = now; return { zone, fired: z }; }
+      previousWasValid = true;
+      if (confirmedMs >= dwell) { confirmedMs = 0; return { zone, fired: z }; }
       return { zone, fired: null };
     }
   };

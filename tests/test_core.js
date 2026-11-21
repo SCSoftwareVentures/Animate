@@ -64,10 +64,42 @@ t('zone tracker: needs 260 ms dwell, survives one dropped frame, no 10% dead ban
   assert(f2 !== null, 'object on a zone boundary must still resolve to a zone');
   const z3 = C.createZoneTracker(); now = 0; let f3 = null;
   for (let i = 0; i < 30; i++) { now += 33; const r = z3.update(i % 2 ? null : { x: .5 }, now); if (r.fired !== null) f3 = r.fired; }
-  assert.equal(f3, 1, 'alternating detection (50% per-frame) must still fire');
+  assert.equal(f3, null, 'alternating missing frames must not manufacture confirmed dwell time');
   const z4 = C.createZoneTracker(); now = 0; let f4 = null;
   for (let i = 0; i < 30; i++) { now += 33; const r = z4.update(null, now); if (r.fired !== null) f4 = r.fired; }
   assert.equal(f4, null, 'no object -> never fires');
+});
+t('ADVERSARIAL: explicit missing frames cannot be counted toward confirmed zone dwell', () => {
+  const z=C.createZoneTracker();
+  assert.equal(z.update({x:.5},0).fired,null);
+  assert.equal(z.update({x:.5},50).fired,null);
+  assert.equal(z.update({x:.5},100).fired,null);
+  assert.equal(z.update(null,140).fired,null);
+  assert.equal(z.update({x:.5},180).fired,null);
+  assert.equal(z.update(null,220).fired,null);
+  assert.equal(z.update({x:.5},260).fired,null);
+  assert.equal(z.update({x:.5},300).fired,null);
+  assert.equal(z.update({x:.5},340).fired,null);
+  assert.equal(z.update({x:.5},380).fired,null);
+  assert.equal(z.update({x:.5},420).fired,1);
+});
+t('ADVERSARIAL: interrupted detection cannot trigger during a null frame', () => {
+  const z=C.createZoneTracker({dwellMs:150});
+  assert.equal(z.update({x:.5},0).fired,null);
+  assert.equal(z.update({x:.5},100).fired,null);
+  assert.equal(z.update(null,140).fired,null);
+  assert.equal(z.update({x:.5},180).fired,null);
+  assert.equal(z.update({x:.5},230).fired,1);
+});
+t('ZONE CONTROL: intermittent false positives without consecutive confirmation do not fire', () => {
+  const z=C.createZoneControlProbe(3000);
+  z.begin(0,'absent','colour');
+  for(let i=1;i<=30;i++)z.add(i%2?{x:.5,y:.5}:null,i*100);
+  const report=z.snapshot(3000);
+  assert.equal(report.status,'timed');
+  assert.equal(report.complete,true);
+  assert.equal(report.detectedFrames,15);
+  assert.equal(report.unexpectedDwellEvents,0);
 });
 t('local-day maths (Melbourne-style midnight), not UTC', () => {
   assert.equal(C.dayDiff('2026-11-20', '2026-11-27'), 7); assert.equal(C.dayDiff('2026-12-30', '2027-01-02'), 3);
