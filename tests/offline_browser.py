@@ -344,7 +344,7 @@ with sync_playwright() as p:
     pg.click('#deviceBenchStart')
     check('camera performance measurements cannot overlap active zone controls',
           'Measurement blocked: finish the 10-second' in pg.locator('#deviceBenchStatus').inner_text() and
-          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='manual')
+          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='interrupted')
     pg.wait_for_timeout(450)
     pg.click('#zoneControlFinish')
     zone_report=json.loads(pg.locator('#zoneControlReport').inner_text())
@@ -393,6 +393,7 @@ with sync_playwright() as p:
     # the attempt must be interrupted rather than silently included as clean data.
     b,c,pg,errs=prepare(p,camera=True,debug=True)
     enrol(pg)
+    pg.locator('#dbgbox summary').click()
     pg.select_option('#detector','foreground')
     pg.click('#camera');pg.wait_for_timeout(400)
     pg.click('#captureBackground')
