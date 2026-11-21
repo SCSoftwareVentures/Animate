@@ -2,7 +2,7 @@
 
 **Status: consolidated draft engineering candidate — not approved for public deployment, participant recruitment, model redistribution or sale as a released end-user product.**
 
-**Start here for review:** [Acquisition and integration dossier](ACQUISITION_REVIEW_DOSSIER.md). The cumulative source is being reviewed as one proposed change against `main`; the earlier stacked draft PRs remain engineering history. Technical verification and commercial readiness are separate gates.
+**Start here for review:** [Acquisition and integration dossier](ACQUISITION_REVIEW_DOSSIER.md). A separate [no-charge iPhone preview option](ZERO_COST_IPHONE_PREVIEW.md) packages a model-free offline ZIP but does not deploy it or activate provider billing. The cumulative source is being reviewed as one proposed change against `main`; the earlier stacked draft PRs remain engineering history. Technical verification and commercial readiness are separate gates.
 
 The preceding exact engineering commit `1c6b1eb145352e55f2a8ee02ef35bcf0b633314c` passed GitHub Actions run #25 (147 unit/security/licensing checks and 107 browser checks). **That is historical evidence, not verification of a later consolidated commit.** Inspect the consolidated PR's own CI status before approving any merge.
 

@@ -58,6 +58,12 @@ The tool deliberately reports `deploymentApproved: false` and `physicalIphoneVer
 
 **Not yet authorised or prepared for distribution.** Requires resolved exact runtime/model notices, approved vendor bundle, integrity checks, operator permission for external hosting and the full release security review. Only then test actual fingertip tracking on physical iPhone Safari using [the bench protocol](SAFARI_DEVICE_TEST.md), recording false completions, latency, inferred FPS, reload/start failures, camera revocation, battery and thermal observations.
 
+## Explicit $0 owner-only private-preview option (proposed)
+
+The preferred **no-additional-cost** path is now [ZERO_COST_IPHONE_PREVIEW.md](ZERO_COST_IPHONE_PREVIEW.md). Its code creates only an **offline, seven-file, model-free Netlify ZIP** with verified app bytes and security headers. It does not open an account, call provider APIs, deploy a URL or request a payment method. The original SHA-256 receipt remains outside the served ZIP.
+
+Provider documentation indicates a **credit-based Netlify Free plan with a hard usage cap** and **Private** owner-only project visibility, but the particular account, public/private setting, hosted headers, billing behaviour and physical iPhone compatibility are **not verified**. Free-plan hard limits do not make a Public site acceptable. **Stop rather than pay, upload to a public project, or create a billed Codespace.** A live site requires an independently approved provider account, explicit privacy/access verification and owner-only manual deployment.
+
 ## Required owner decision before any external action
 
 Approval must identify **provider/account, whether access is public or authenticated, exactly which build and assets may be distributed, acceptable cost, and when access should be revoked**. The assistant must not interpret general permission to continue coding as authorisation to deploy or pay.
