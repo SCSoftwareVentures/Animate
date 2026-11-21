@@ -708,7 +708,7 @@ function createOperatorPacketRecorder() {
   const zoneCoverage = ['sampledSeconds','secondsWithThreeFreshFrames','requiredSeconds',
     'maxGapMs','rejectedSamples','adequate'];
   const distFields = ['samples','min','median','p95','max'];
-  let settings = null, performanceTrials = [], zoneTrials = [];
+  let settings = null, performanceTrials = [], zoneTrials = [], invalidated = false;
 
   const isPlain = v => v !== null && typeof v === 'object' && !Array.isArray(v) &&
     (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
@@ -826,12 +826,21 @@ function createOperatorPacketRecorder() {
     }
     settings = {schema:'ANIMATE_IPHONE_OPERATOR_PACKET_V1',sourceCommit,
       deviceClaim:'self-reported-physical-iphone',registeredBeforeTesting:true,detector};
+    invalidated = false;
     return summary();
   }
   function active() { return !!settings; }
   function method() { return settings?.detector ?? null; }
+  function invalidate() {
+    // Any dropped trial would create a selectively incomplete denominator.
+    // Never export the remaining good-looking subset after a capture failure.
+    if (!settings) throw Error('Begin an operator packet first');
+    invalidated = true;
+    return summary();
+  }
   function add(kind, light, raw) {
     if (!settings) throw Error('Begin an operator packet first');
+    if (invalidated) throw Error('Packet evidence integrity is blocked; discard and restart');
     if (!lighting.includes(light)) throw Error('Select an approved lighting condition');
     const target = kind === 'performance' ? performanceTrials :
       kind === 'zone' ? zoneTrials : null;
@@ -847,21 +856,25 @@ function createOperatorPacketRecorder() {
   }
   function packet() {
     if (!settings) throw Error('Operator packet not started');
+    if (invalidated) throw Error('Cannot export a packet with omitted or unvalidated trials');
     return JSON.parse(JSON.stringify({...settings, performanceTrials, zoneTrials}));
   }
   function summary() {
-    return {configured:active(), detector:method(), performanceTrials:performanceTrials.length,
-      zoneTrials:zoneTrials.length,
+    return {configured:active(), detector:method(), integrityOk:!invalidated,
+      performanceTrials:performanceTrials.length, zoneTrials:zoneTrials.length,
       incompletePerformance:performanceTrials.filter(x=>!x.report.complete).length,
       incompleteZone:zoneTrials.filter(x=>!x.report.complete).length,
       independentDeviceVerification:false, independentAccuracyVerification:false,
-      purchaseDemandVerified:false, note:'Operator self-reported only; no automatic upload or storage.'};
+      purchaseDemandVerified:false,
+      note: invalidated ?
+        'BLOCKED: at least one attempted trial could not be retained. Do not use this packet; discard and restart the entire protocol.' :
+        'RAM-only operator self-report. Verify Downloads before closing Safari. No automatic upload or durable backup.'};
   }
   function reset() {
-    settings = null; performanceTrials = []; zoneTrials = [];
+    settings = null; performanceTrials = []; zoneTrials = []; invalidated = false;
     return summary();
   }
-  return {begin,active,method,add,packet,summary,reset};
+  return {begin,active,method,add,invalidate,packet,summary,reset};
 }
 
 const core = { BUILD, SCHEMA_VERSION, MAX_EVENTS, clamp, rgb2hsv, hueDist, sampleReference,

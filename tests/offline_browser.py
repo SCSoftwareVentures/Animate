@@ -298,6 +298,8 @@ with sync_playwright() as p:
           json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='not_started')
     pg.locator('#view').click(position={'x':145,'y':120})
     pg.click('#deviceBenchStart')
+    check('packet cannot be discarded while a performance measurement is running',
+          pg.locator('#packetReset').is_disabled())
     pg.click('#zoneControlStart')
     check('zone controls cannot overlap an active camera performance measurement',
           'Control blocked: finish the 60-second' in pg.locator('#zoneControlStatus').inner_text() and
@@ -353,9 +355,16 @@ with sync_playwright() as p:
     check('packet is separate from existing participant research record',
           not any('ANIMATE_IPHONE_OPERATOR_PACKET_V1' in json.dumps(e)
                   for e in record(pg)['events']))
+    pg.evaluate("packetRecorder.invalidate(); refreshPacketSummary()")
+    check('rejected trial invalidates entire evidence packet and blocks selective export',
+          pg.locator('#packetExport').is_disabled() and
+          pg.locator('#packetCopy').is_disabled() and
+          json.loads(pg.locator('#packetSummary').inner_text())['integrityOk'] is False)
     pg.once('dialog',lambda dialog: dialog.accept())
     pg.click('#packetReset')
-    check('reset clears operator packet from memory',pg.locator('#packetExport').is_disabled())
+    check('reset clears blocked operator packet from memory',
+          pg.locator('#packetExport').is_disabled() and
+          json.loads(pg.locator('#packetSummary').inner_text())['integrityOk'] is True)
     check('debug device sampling and negative controls have no JavaScript errors',not errs,str(errs))
     c.close();b.close()
 
