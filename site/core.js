@@ -154,6 +154,8 @@ const BUILD = '0.7.0';
 const SCHEMA_VERSION = 5;
 const MAX_EVENTS = 2000;
 const modes = ['play', 'create', 'learn'];
+// Self-declared customer segments, not independently verified identities.
+const roles = ['Game creator', 'Content creator', 'Parent / family', 'Educator', 'Developer', 'Other'];
 const probeColours = ['blue', 'green', 'red', 'other'];
 const probeLights = ['bright', 'normal', 'dim'];
 const probeBackgrounds = ['plain', 'cluttered'];
@@ -230,6 +232,7 @@ function sanitizeRecord(r) {
   if (!r || typeof r !== 'object' || Array.isArray(r) || r.version !== SCHEMA_VERSION ||
       r.build !== BUILD || typeof r.id !== 'string' || !/^[a-zA-Z0-9-]{8,80}$/.test(r.id) ||
       !dateOK(r.created) || !dayOK(r.createdDay) || !Array.isArray(r.events) ||
+      (r.role !== undefined && !roles.includes(r.role)) ||
       r.events.length > MAX_EVENTS || (r.exportedAt != null && !dateOK(r.exportedAt)) ||
       !['iPhone', 'Android', 'Other'].includes(r.device)) return null;
   const created = Date.parse(r.created);
@@ -276,6 +279,7 @@ function sanitizeRecord(r) {
     events.push(safe);
   }
   return { id: r.id, version: r.version, build: r.build, device: r.device,
+    role: r.role ?? 'Unspecified',
     created: r.created, createdDay: r.createdDay, exportedAt: r.exportedAt ?? null, events };
 }
 
@@ -348,6 +352,15 @@ function summarize(records, ledger = []) {
       verifiedTesters: verified.filter(x => x.metrics.detectors.includes(detector)).length,
       verifiedCompleted: verified.filter(x => x.metrics.completedDetectors.includes(detector)).length
     }])),
+    byRole: Object.fromEntries([...roles, 'Unspecified'].map(role => {
+      const cohort = inspected.filter(x => x.record.role === role);
+      const matched = cohort.filter(x => x.verified && x.record.exportedAt !== null);
+      return [role, {
+        acceptedExports: cohort.length, verifiedExports: matched.length,
+        provisional: counts(cohort), verified: counts(matched)
+      }];
+    })),
+    roleWarning: 'Intended-use categories are self-reported; cohorts are not independent evidence of demand.',
     distinctSecondExperience: 'Not measured: modes share zone-control mechanics',
     pricing: 'Not measured: no pricing or hypothetical purchase prompt',
     evidenceWarning: 'All files are editable self-reports. Ledger matching is procedural, not cryptographic proof.'
@@ -355,7 +368,7 @@ function summarize(records, ledger = []) {
 }
 
 const core = { BUILD, SCHEMA_VERSION, MAX_EVENTS, clamp, rgb2hsv, hueDist, sampleReference,
-  skinLike, locate, createZoneTracker, localDay, dayDiff, modes, sanitizeRecord, ledgerKey,
+  skinLike, locate, createZoneTracker, localDay, dayDiff, modes, roles, sanitizeRecord, ledgerKey,
   recordMetrics, summarize, PROBE_FRAMES, probeColours, probeLights, probeBackgrounds,
   probeExpected, createRecognitionProbe, calibrationCandidate };
 if (typeof module !== 'undefined' && module.exports) module.exports = core;
