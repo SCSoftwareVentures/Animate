@@ -166,6 +166,29 @@ t('ADVERSARIAL: nonmonotonic times, ambiguous point and invalid coordinate do no
   assert.equal(z.update({x:.5}, 1150).fired,null);
 });
 
+t('EVIDENCE: impossible Gregorian dates and noncanonical UTC timestamps are rejected', () => {
+  for (const bad of [
+    '2026-02-30T00:00:00.000Z', '2026-13-01T00:00:00.000Z',
+    '2026-11-01T24:00:00.000Z', '2026-11-01T00:00:00+00:00'
+  ]) {
+    assert.equal(C.summarize([base('participant-date01', [], { created: bad })]).acceptedRecords, 0, bad);
+  }
+  assert.equal(C.summarize([base('participant-date02', [], {createdDay:'2026-02-30'})]).acceptedRecords, 0);
+});
+t('EVIDENCE: local enrollment day must align with created UTC date', () => {
+  assert.equal(C.summarize([base('participant-date03', [], {createdDay:'2026-11-10'})]).acceptedRecords, 0);
+  assert.equal(C.summarize([base('participant-date04', [], {createdDay:'2026-10-31'})]).acceptedRecords, 1,
+    'legitimate UTC/local date-boundary offset must remain valid');
+});
+t('EVIDENCE: return-day claims inconsistent with event timestamps do not count', () => {
+  const invalid = base('participant-date05', [start(),
+    e('return', iso(24*60+1), {day:'2026-11-07', days:6})]);
+  assert.equal(C.summarize([invalid]).provisional.returned, 0);
+  const valid = base('participant-date06', [start(),
+    e('return', iso(24*60+1), {day:'2026-11-02', days:1})]);
+  assert.equal(C.summarize([valid]).provisional.returned, 1);
+});
+
 t('v0.4 probe validates manual condition labels and rejects invalid timings', () => {
   const p = C.createRecognitionProbe();
   assert.throws(() => p.start({colour:'white', light:'dim', background:'plain',expected:'present'}));
@@ -232,6 +255,118 @@ t('v0.4 calibration must match a unique nearby blob, not a distant object', () =
   assert.equal(C.calibrationCandidate(frame,W,H,REF,Infinity,.5),null);
 });
 
+
+t('EVIDENCE: role segmentation preserves declared customer cohort without conflating completion and paid demand', () => {
+  const educator = base('participant-role-01', [start(), complete()], {role:'Educator'});
+  const parent = base('participant-role-02', [start(), complete()], {role:'Parent / family'});
+  const summary = C.summarize([educator, parent], [C.ledgerKey(educator)]);
+  assert.equal(summary.byRole.Educator.acceptedExports, 1);
+  assert.equal(summary.byRole.Educator.verifiedExports, 1);
+  assert.equal(summary.byRole.Educator.verified.first, 1);
+  assert.equal(summary.byRole['Parent / family'].provisional.first, 1);
+  assert.equal(summary.byRole['Parent / family'].verified.first, 0);
+  assert.equal(summary.byRole.Educator.verified.returnEligible, 1);
+});
+t('EVIDENCE: missing role remains unclassified; unexpected or invented roles are rejected', () => {
+  const absent = base('participant-role-03', [start(), complete()]);
+  const forged = base('participant-role-04', [start(), complete()], {role:'Bank account manager'});
+  const malicious = base('participant-role-05', [start(), complete()], {role:{toString:()=> 'Educator'}});
+  const summary = C.summarize([absent, forged, malicious]);
+  assert.equal(summary.acceptedRecords, 1);
+  assert.equal(summary.rejectedRecords, 2);
+  assert.equal(summary.byRole.Unspecified.acceptedExports, 1);
+  assert.equal(summary.byRole.Educator.acceptedExports, 0);
+});
+t('EVIDENCE: each customer segment has its own independent denominator', () => {
+  const a = base('participant-role-06', [start(), complete()], {role:'Educator'});
+  const b = base('participant-role-07', [start('camera-run-002')], {role:'Educator'});
+  const c = base('participant-role-08', [start(), complete()], {role:'Developer'});
+  const summary = C.summarize([a,b,c],[C.ledgerKey(a),C.ledgerKey(b)]);
+  assert.equal(summary.byRole.Educator.verified.cameraTesters, 2);
+  assert.equal(summary.byRole.Educator.verified.first, 1);
+  assert.equal(summary.byRole.Developer.verified.cameraTesters, 0);
+  assert.equal(summary.verified.cameraTesters, 2);
+});
+
+t('EVIDENCE: completed camera challenge feedback is counted once and private text stays out of summaries', () => {
+  const feedback = e('problem_response', iso(3), {
+    mode:'play', input:'camera', answer:'I currently use paper manipulatives.'
+  });
+  const r=base('participant-feedback-01', [start(),complete(),feedback,feedback], {role:'Educator'});
+  const normalized=C.sanitizeRecord(r);
+  const saved=normalized.events.find(x=>x.type==='problem_response');
+  assert.equal(saved.feedbackProvided,true);
+  assert.equal(saved.answer,undefined,'do not propagate participant free-text into reports');
+  const summary=C.summarize([r],[C.ledgerKey(r)]);
+  assert.equal(summary.provisional.feedbackRespondents,1);
+  assert.equal(summary.verified.feedbackRespondents,1);
+  assert.equal(summary.verified.feedbackAfterCameraCompletion,1);
+  assert.equal(summary.byRole.Educator.verified.feedbackRespondents,1);
+  assert(!JSON.stringify(summary).includes('paper manipulatives'));
+});
+t('EVIDENCE: malformed, empty and over-limit feedback cannot inflate response counts', () => {
+  const payloads=['   ', 'x'.repeat(241), {private:'somebody'}, null];
+  for (const [i,answer] of payloads.entries()) {
+    const r=base('participant-feedback-bad-'+i,[start(),complete(),
+      e('problem_response',iso(3),{mode:'play',input:'camera',answer})]);
+    const summary=C.summarize([r]);
+    assert.equal(summary.provisional.feedbackRespondents,0,'case '+i);
+    assert.equal(summary.provisional.feedbackAfterCameraCompletion,0,'case '+i);
+  }
+});
+t('EVIDENCE: touch feedback and feedback preceding camera completion are not camera completion evidence', () => {
+  const touch=base('participant-feedback-touch',[start('touch-run-001','play',1,'touch'),
+    e('problem_response',iso(3),{mode:'play',input:'touch',answer:'A real alternative'})]);
+  const before=base('participant-feedback-before',[start(),
+    e('problem_response',iso(1.5),{mode:'play',input:'camera',answer:'Prior answer'}),
+    complete()]);
+  for (const r of [touch,before]) {
+    const summary=C.summarize([r]);
+    assert.equal(summary.provisional.feedbackRespondents,1);
+    assert.equal(summary.provisional.feedbackAfterCameraCompletion,0);
+  }
+});
+
+t('PRIVACY: deletion clears all historical ANIMATE keys, preserves unrelated site data', () => {
+  const data = new Map([
+    ['animate-validation-v1', 'old'], ['animate-validation-v05', 'old'],
+    ['animate-validation-v07', 'latest'], ['animate-validation', 'old-root'],
+    ['another-app-token', 'leave alone'], ['animate-demo-setting', 'leave alone']
+  ]);
+  const storage = {
+    get length() { return data.size; },
+    key(i) { return [...data.keys()][i] ?? null; },
+    getItem(k) { return data.get(k) ?? null; },
+    removeItem(k) { data.delete(k); }
+  };
+  const outcome = C.deleteLocalResearchData(storage);
+  assert.deepEqual(outcome, {ok: true, removed: 4, failed: 0});
+  assert.deepEqual([...data.keys()], ['another-app-token', 'animate-demo-setting']);
+  assert.deepEqual(C.deleteLocalResearchData(storage), {ok: true, removed: 0, failed: 0});
+});
+t('PRIVACY: blocked storage reports failure instead of claiming deletion', () => {
+  const denied = { get length() { throw Error('SecurityError'); } };
+  const outcome = C.deleteLocalResearchData(denied);
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.removed, 0);
+  assert(outcome.failed >= 1);
+});
+t('PRIVACY: partial deletion continues and reports remaining record', () => {
+  const data = new Map([['animate-validation-v1', 'a'], ['animate-validation-v07', 'b'],
+    ['unrelated', 'keep']]);
+  const storage = {
+    get length() { return data.size; },
+    key(i) { return [...data.keys()][i] ?? null; },
+    getItem(k) { return data.get(k) ?? null; },
+    removeItem(k) { if (k === 'animate-validation-v1') throw Error('Denied');
+      data.delete(k); }
+  };
+  const result = C.deleteLocalResearchData(storage);
+  assert.deepEqual(result, {ok: false, removed: 1, failed: 1});
+  assert(data.has('animate-validation-v1'));
+  assert(!data.has('animate-validation-v07'));
+  assert(data.has('unrelated'));
+});
 
 t('v0.7 authenticates hand event provenance within an export, not against an external issuer', () => {
   const model='mediapipe-hand-landmarker-float16-v1';
