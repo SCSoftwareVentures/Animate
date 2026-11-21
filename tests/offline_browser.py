@@ -18,7 +18,7 @@ def check(name, ok, context=''):
     checks.append((name, bool(ok)))
     print(('PASS ' if ok else 'FAIL ') + name + ((' ' + context) if context else ''), flush=True)
 
-def prepare(p, camera=False, benchmark=False, hand_mock=False):
+def prepare(p, camera=False, benchmark=False, hand_mock=False, debug=False):
     browser_path = os.environ.get('CHROMIUM_PATH') or shutil.which('chromium')
     options = {'executable_path': browser_path} if browser_path else {}
     browser = p.chromium.launch(**options, args=['--no-sandbox',
@@ -40,6 +40,9 @@ def prepare(p, camera=False, benchmark=False, hand_mock=False):
     if benchmark:
         page.evaluate("""() => { const get=URLSearchParams.prototype.get;
           URLSearchParams.prototype.get=function(k){return k==='benchmark'?'1':get.call(this,k);}; }""")
+    if debug:
+        page.evaluate("""() => { const get=URLSearchParams.prototype.get;
+          URLSearchParams.prototype.get=function(k){return k==='debug'?'1':get.call(this,k);}; }""")
     if camera:
         page.evaluate('''() => {
           Object.defineProperty(window,'isSecureContext',{configurable:true,value:true});
@@ -243,6 +246,31 @@ with sync_playwright() as p:
           not pg.evaluate('foreground.ready') and pg.locator('#score').inner_text()=='0 / 3' and
           not any(e['type']=='complete' for e in record(pg)['events']))
     check('no errors after frozen foreground camera',not errs,str(errs))
+    c.close();b.close()
+
+
+    b,c,pg,errs=prepare(p,camera=True,debug=True)
+    enrol(pg)
+    pg.locator('#dbgbox summary').click()
+    pg.click('#deviceBenchStart')
+    check('debug device benchmark cannot start without live camera',
+          'Measurement blocked:' in pg.locator('#deviceBenchStatus').inner_text() and
+          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='not_started')
+    pg.click('#camera');pg.wait_for_timeout(550)
+    pg.locator('#view').click(position={'x':145,'y':120})
+    pg.click('#deviceBenchStart')
+    pg.wait_for_timeout(1400)
+    pg.click('#deviceBenchFinish')
+    report=json.loads(pg.locator('#deviceBenchReport').inner_text())
+    check('debug camera measures actual processed frames but marks early stop incomplete',
+          report['status']=='manual' and not report['complete'] and
+          report['observedMs'] > 1000 and report['sampleWindows'] >= 1 and
+          report['inferenceMs']['samples'] > 0 and report['inferredFrames'] > 0)
+    check('numeric device sample contains no participant IDs or raw image data',
+          not any(k in report for k in ['userAgent','participantId','id','frameData','lastPosition']) and
+          all('ANIMATE_LOCAL_DEVICE_PERFORMANCE_SAMPLE' not in json.dumps(e)
+              for e in record(pg)['events']))
+    check('debug device sampling has no JavaScript errors',not errs,str(errs))
     c.close();b.close()
 
 bad=[name for name, ok in checks if not ok]
