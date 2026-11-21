@@ -52,5 +52,8 @@ jobs:
             'https://storage.googleapis.com/mediapipe-assets/tasks/testdata/vision/thumb_up.jpg?generation=1782185354353621'
           python tools/vendor_hand_model.py --stage-test --site-dir "$assets_dir/site" \
             --runtime-archive "$assets_dir/runtime.tgz" --model-file "$assets_dir/hand_landmarker.task"
+          # Both engines consume the same SHA-256 pinned staged assets; no shipping bundle.
           python tests/test_real_hand_browser.py --site "$assets_dir/site" \
-            --fixture "$assets_dir/thumb_up.jpg" --trials 1 --frames 6
+            --fixture "$assets_dir/thumb_up.jpg" --trials 1 --frames 6 --browser chromium
+          python tests/test_real_hand_browser.py --site "$assets_dir/site" \
+            --fixture "$assets_dir/thumb_up.jpg" --trials 1 --frames 6 --browser webkit
