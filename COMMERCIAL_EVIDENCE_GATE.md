@@ -41,3 +41,8 @@
 **Market demand and buyer interest:** unverified. No evidence supports statements such as 'easy to sell', 'dominates competitors', or an independently substantiated acquisition price.
 
 **Owner-controlled next step:** approve a constrained model-free, private iPhone preview **only after** selecting an appropriate host and reviewing its privacy/access controls. Conduct technical device measurements first; authorise external customer or acquirer outreach separately.
+
+
+## Pre-registered user/buyer discovery — proposed, not executed
+
+The dedicated [COMMERCIAL_TEST_REGISTRATION.md](COMMERCIAL_TEST_REGISTRATION.md) specifies a falsifiable initial adult-educator fraction demonstration hypothesis, target sample and exclusion rules, current-alternative measurement, independent acquisition-buyer track and strict commitment classifications. **No recruitment, interview, acquisition contact, payment or demand observation has occurred.** It is deliberately a decision protocol, not a commercial validation result. Owner must approve outreach and privacy controls separately.
