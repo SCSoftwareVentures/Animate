@@ -160,9 +160,11 @@ def audit_responses(expected, fetch):
         check_headers(granted, path)
 
     for path in FORBIDDEN_PATHS:
-        granted = fetch("GET", path, True)
-        require(granted.status in (403, 404),
-                "Hosted preview exposes model, manifest or research data: " + path)
+        for authorized in (False, True):
+            response = fetch("GET", path, authorized)
+            require(response.status in (403, 404),
+                    "Hosted preview exposes model, manifest or research data"
+                    + (" to an unauthorised visitor: " if not authorized else ": ") + path)
     post = fetch("POST", "/", True)
     require(post.status in (403, 404, 405, 501),
             "Host unexpectedly accepts browser uploads")
@@ -170,7 +172,7 @@ def audit_responses(expected, fetch):
         "technicalPreflight": "PASS",
         "checkedStaticFiles": len(expected),
         "accessControl": "Verified on all six static assets, with supplied credentials",
-        "modelRedistribution": "NOT PRESENT",
+        "canonicalSensitivePaths": "Denied in both authenticated and unauthenticated sessions",
         "deploymentApproved": False,
         "privacyOperatorApproved": False,
         "physicalIphoneVerified": False,
