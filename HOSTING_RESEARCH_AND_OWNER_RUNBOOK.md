@@ -43,3 +43,8 @@ This canary is NOT ANIMATE and contains no camera, application logic, MediaPipe,
 - Cloudflare production + preview dual configuration: https://developers.cloudflare.com/pages/platform/known-issues/
 - Vercel Hobby non-commercial: https://vercel.com/docs/plans/hobby/
 - GitHub private Codespaces ports: https://docs.github.com/en/codespaces/reference/security-in-github-codespaces
+
+
+## Live contradiction: Private SSO does not cover generated deployment thumbnails
+
+The actual owner-approved canary deployment returned HTTP 401 across both production and immutable URLs for 64 anonymous root/asset/alias/GET/HEAD probes, but its provider-generated screenshot_url delivered the private canary marker to an anonymous browser over a public CDN (HTTP 200). This is a confidentiality failure outside the protected page paths. **This supersedes the provisional Netlify-preferred verdict above** for distributing ANIMATE. Consult [HOSTING_SCREENSHOT_SIDE_CHANNEL_GATE.md](HOSTING_SCREENSHOT_SIDE_CHANNEL_GATE.md) before any further content upload. Only harmless text was used in the test.
