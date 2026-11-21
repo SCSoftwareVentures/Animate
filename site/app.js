@@ -369,10 +369,11 @@ function onCameraLoop() {
       $('benchStatus').textContent = `Fresh frames: ${result.frames} / ${result.target}`;
       if (result.frames >= C.PROBE_FRAMES) finishProbe();
     }
+    const observedForControl = p;
     if (p?.ambiguous) { setStatus(detectorKind === 'hand' ? 'Multiple hands detected. Show exactly one hand.' :
       'Multiple foreground regions detected. Remove the distractor.'); p = null; }
     if (zoneControl.active()) {
-      zoneControl.add(p, now);
+      zoneControl.add(observedForControl, now);
       if (!zoneControl.active()) refreshZoneControl();
     }
     lastPosition = p;
