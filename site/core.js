@@ -367,10 +367,42 @@ function summarize(records, ledger = []) {
   };
 }
 
+/**
+ * Remove only the ANIMATE research-data namespace across historical build versions.
+ * Snapshot keys before deletion, since deleting while iterating shifts localStorage indices.
+ * Report blocked/partial deletion instead of suggesting that a reset definitely succeeded.
+ * Does not affect records previously downloaded, sent, or backed up outside this origin.
+ */
+function deleteLocalResearchData(storage) {
+  let removed = 0, failed = 0;
+  try {
+    const keys = [];
+    for (let index = 0; index < storage.length; index++) {
+      const key = storage.key(index);
+      if (typeof key === 'string' &&
+          (key === 'animate-validation' || key.startsWith('animate-validation-'))) {
+        keys.push(key);
+      }
+    }
+    for (const key of keys) {
+      try {
+        storage.removeItem(key);
+        if (storage.getItem(key) === null) removed++;
+        else failed++;
+      } catch (_) {
+        failed++;
+      }
+    }
+    return { ok: failed === 0, removed, failed };
+  } catch (_) {
+    return { ok: false, removed, failed: failed + 1 };
+  }
+}
+
 const core = { BUILD, SCHEMA_VERSION, MAX_EVENTS, clamp, rgb2hsv, hueDist, sampleReference,
   skinLike, locate, createZoneTracker, localDay, dayDiff, modes, roles, sanitizeRecord, ledgerKey,
   recordMetrics, summarize, PROBE_FRAMES, probeColours, probeLights, probeBackgrounds,
-  probeExpected, createRecognitionProbe, calibrationCandidate };
+  probeExpected, createRecognitionProbe, calibrationCandidate, deleteLocalResearchData };
 if (typeof module !== 'undefined' && module.exports) module.exports = core;
 else root.AnimateCore = core;
 })(typeof globalThis === 'undefined' ? this : globalThis);
