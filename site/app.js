@@ -657,10 +657,19 @@ $('export').addEventListener('click', exportRecord);
 $('reset').addEventListener('click', () => {
   if (!confirm('Delete your local ANIMATE records on this device? Previously exported copies are not deleted.')) return;
   stopCamera();
-  try { localStorage.removeItem(STORE); localStorage.removeItem('animate-validation-v1'); } catch (_) {}
-  record = null; probeSamples = []; $('benchResults').textContent = 'No completed samples.'; $('lab').hidden = true; $('results').hidden = true;
+  let deletion = { ok: false, removed: 0, failed: 1 };
+  try { deletion = C.deleteLocalResearchData(localStorage); } catch (_) { /* Local storage can be blocked. */ }
+  record = null;
+  importedRecords = []; importedLedger = []; unreadableFiles = 0;
+  $('aggregate').value = ''; $('ledger').value = '';
+  $('aggregateOutput').textContent = 'No records imported.';
+  probeSamples = []; $('benchResults').textContent = 'No completed samples.';
+  $('lab').hidden = true; $('results').hidden = true;
   $('feedbackPanel').hidden = true; $('intro').hidden = false;
   $('consent').checked = false; $('adult').checked = false; $('saveProblem').disabled = false;
+  $('introerr').textContent = deletion.ok ?
+    'Local ANIMATE research records were deleted from this browser. Previously exported or shared copies are unaffected.' :
+    'Local data was cleared from this session, but browser storage deletion could not be confirmed. Please clear ANIMATE website data in Safari settings.';
   setStatus('Choose camera or touch fallback.');
 });
 $('aggregate').addEventListener('change', async event => {
