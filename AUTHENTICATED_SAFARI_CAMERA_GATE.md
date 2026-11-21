@@ -32,3 +32,21 @@ The reviewed \`/_headers\` rule is unchanged, and both verifier assets are packa
 - The browser's response report is **owner-observed on-device evidence**, not independent server-side attestation. The checker is pinned to the packaged source via SRI and the GitHub CI review artifact; a malicious hosting provider could theoretically replace both the page and code. This cannot be fully eliminated on Netlify without additional independent tooling.
 - The public deploy screenshot URL **continues to exist**, independent of successful byte/header checks. This operator-only QA may proceed only because the package contains already-public, nonsecret source and a neutral root; it is not a licence to upload confidential user/business records.
 - Do not merge, publish on public hosting, use ML models, ask for login cookies, enable paid services, upload evidence containing personal identifiers or contact other participants. The current Netlify account remains the Free plan and the same existing site.
+
+
+## Physical iPhone authenticated verifier result — 21 Nov 2026, 9:21 PM Melbourne
+
+Owner provided a screenshot of the live \`/operator-preview/verify.html\` result. The screenshot shows **\`result: FAIL\`**, **\`checkedFiles: 5\` of 7**, **14/14 GET/HEAD header requests checked with no reported header failures**, **4/4 forbidden paths absent**, and precisely two file SHA-256 mismatches: the neutral \`/index.html\` and app \`/operator-preview/index.html\`. The five non-HTML model-free files passed. This is **real on-device evidence of an HTML response transformation or mismatch**, not evidence of complete integrity or approval for camera.
+
+Netlify officially documents server/edge HTML injection mechanisms, including snippet injection at serve time and its 2026 pre-launch/badge script. Such an injection is a plausible explanation, **not a proven root cause** from this screenshot. A project with team login/SSO may not display the badge, which further prevents automatically attributing this mismatch to the overlay. Other transformations, origin byte errors or deployment effects remain possible. Sources:
+- https://docs.netlify.com/build/post-processing/snippet-injection/
+- https://docs.netlify.com/manage/projects/powered-by-netlify-badge/
+- https://docs.netlify.com/manage/projects/pre-launch-toolbar/
+
+### Scoped diagnostic engineering
+
+The downstream draft \`engineering/animate-safari-html-byte-diagnostics-20261121\` retains every original hash/header assertion. The embedded verifier now includes the **two Git-verified HTML byte references** in its SRI-pinned JS so it can report, **only upon an HTML hash mismatch**: expected and served byte lengths and hashes, first unequal byte offset, matching trailing byte count, a small bounded printable changed-region sample, and a boolean signature check for documented Netlify HUD injection markers. Reports remain local to the signed-in Safari page. No camera, external request, storage or telemetry is added.
+
+CI must verify the original clean site still passes and a synthetic injected HTML document **fails** with helpful bounded diagnostics. If the hosted result shows an exact, harmless provider script insertion, evaluate whether the hosting provider can stop transformation without cost or weakening security. **Do not strip/ignore arbitrary injected HTML or mark these files PASS.** If Netlify's SSO-only Free plan unavoidably rewrites HTML, exact-byte authentication cannot be cleared on that host under the current gate; escalate the verified blocker instead of pretending the test passed.
+
+**Current gate: FAIL / camera OFF.** No model/WASM distribution, deployment modification, merge, spending or participant recruitment authorised by this forensic investigation.

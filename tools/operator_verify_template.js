@@ -4,6 +4,7 @@
 (async () => {
   'use strict';
   const FILES = __EXPECTED_APP_HASHES__;
+  const HTML_REFERENCES = __EXPECTED_HTML_REFERENCE_BASE64__;
   const HEADERS = __EXPECTED_HEADERS__;
   const REQUIRED_ABSENT = [
     '/operator-preview/vendor/mediapipe/models/hand_landmarker.task',
@@ -15,9 +16,38 @@
   const copy = document.getElementById('copyResult');
   const failures = [];
   let checkedFiles = 0, checkedHeaders = 0, checkedAbsent = 0;
+  const htmlDiagnostics = [];
   const record = value => failures.push(String(value).slice(0, 160));
   const normalized = value => String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
   const fail = (path, message) => record(path + ': ' + message);
+  // For the two reviewed *public-source* HTML documents, explain any byte
+  // mismatch without treating an unknown hosting rewrite as authorised.
+  // The comparison stays inside Safari and records at most a small changed
+  // region; it never uploads either document or reads local user records.
+  function diagnoseHtml(path, payload, expectedHash, actualHash) {
+    if (!Object.prototype.hasOwnProperty.call(HTML_REFERENCES, path)) return;
+    const approved = Uint8Array.from(atob(HTML_REFERENCES[path]), c => c.charCodeAt(0));
+    const served = new Uint8Array(payload);
+    const shortest = Math.min(approved.length, served.length);
+    let prefix = 0;
+    while (prefix < shortest && approved[prefix] === served[prefix]) prefix++;
+    let suffix = 0;
+    while (suffix < shortest - prefix &&
+      approved[approved.length - suffix - 1] === served[served.length - suffix - 1]) suffix++;
+    const servedEnd = served.length - suffix;
+    const changed = served.slice(prefix, Math.min(servedEnd, prefix + 96));
+    const smallPreview = new TextDecoder('utf-8').decode(changed)
+      .replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 96);
+    const decoded = new TextDecoder('utf-8').decode(served);
+    htmlDiagnostics.push({
+      path,
+      expectedBytes: approved.length, servedBytes: served.length,
+      firstDifferenceByte: prefix, matchingTrailingBytes: suffix,
+      expectedSha256: expectedHash, servedSha256: actualHash,
+      netlifyHudMarkerDetected: /\/?\.netlify\/scripts\/hud|data-netlify-site-id|powered.by.netlify|netlify-hud/i.test(decoded),
+      changedTextPreview: smallPreview
+    });
+  }
   const render = () => {
     const result = {
       audit: 'ANIMATE_V07_ON_DEVICE_FILE_AND_HEADER_GATE',
@@ -30,7 +60,8 @@
       expectedGetAndHeadHeaders: 2 * Object.keys(FILES).length,
       confirmedAbsentPaths: checkedAbsent,
       expectedAbsentPaths: REQUIRED_ABSENT.length,
-      failures
+      failures,
+      htmlDiagnostics
     };
     reportEl.textContent = JSON.stringify(result, null, 2);
     if (copy) {
@@ -96,8 +127,10 @@
         }
         const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
           value => value.toString(16).padStart(2, '0')).join('');
-        if (digest !== expected) fail(path, 'SHA-256 mismatch versus exact CI-reviewed asset');
-        else checkedFiles++;
+        if (digest !== expected) {
+          fail(path, 'SHA-256 mismatch versus exact CI-reviewed asset');
+          diagnoseHtml(path, bytes, expected, digest);
+        } else checkedFiles++;
         inspectHeaders(path, 'GET', response);
         const head = await fetch(url.href, {
           method: 'HEAD', credentials: 'same-origin', cache: 'no-store',

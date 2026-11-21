@@ -79,7 +79,9 @@ def render_verifier(base_content, source_commit):
     if base_content["_headers"] != headers_text().encode():
         raise ValueError("Unreviewed hosting headers")
     template = assert_committed_template(source_commit)
-    if template.count("__EXPECTED_APP_HASHES__") != 1 or template.count("__EXPECTED_HEADERS__") != 1:
+    if (template.count("__EXPECTED_APP_HASHES__") != 1 or
+            template.count("__EXPECTED_HTML_REFERENCE_BASE64__") != 1 or
+            template.count("__EXPECTED_HEADERS__") != 1):
         raise ValueError("Verifier template placeholder integrity failed")
     source_hashes = {
         filename: hash_bytes(base_content[filename])
@@ -87,6 +89,11 @@ def render_verifier(base_content, source_commit):
     }
     script = template.replace(
         "__EXPECTED_APP_HASHES__", json.dumps(source_hashes, separators=(",", ":"), sort_keys=True)
+    ).replace(
+        "__EXPECTED_HTML_REFERENCE_BASE64__",
+        json.dumps({name: base64.b64encode(base_content[name]).decode("ascii")
+                    for name in ("index.html", PREFIX + "index.html")},
+                   separators=(",", ":"), sort_keys=True)
     ).replace(
         "__EXPECTED_HEADERS__", json.dumps(parse_header_policy(), separators=(",", ":"), sort_keys=True)
     ).encode("utf-8")
@@ -145,7 +152,9 @@ def validate_archive(path, expected_hashes):
         sri = "sha384-" + base64.b64encode(hashlib.sha384(script).digest()).decode("ascii")
         if sri.encode("ascii") not in html:
             raise ValueError("Verifier script SRI missing or mismatched")
-        if b"__EXPECTED_APP_HASHES__" in script or b"__EXPECTED_HEADERS__" in script:
+        if (b"__EXPECTED_APP_HASHES__" in script or
+                b"__EXPECTED_HTML_REFERENCE_BASE64__" in script or
+                b"__EXPECTED_HEADERS__" in script):
             raise ValueError("Verifier template not compiled")
         if b"getUserMedia(" in script or b"localStorage" in script:
             raise ValueError("Verifier must not activate camera or read participant records")

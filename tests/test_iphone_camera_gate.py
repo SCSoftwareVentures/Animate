@@ -53,7 +53,11 @@ class CameraSecurityGateTests(unittest.TestCase):
             self.assertNotIn(b'getUserMedia(', files[gate.VERIFY_JS])
             self.assertNotIn(b'localStorage', files[gate.VERIFY_JS])
             self.assertNotIn(b'__EXPECTED_APP_HASHES__', files[gate.VERIFY_JS])
+            self.assertNotIn(b'__EXPECTED_HTML_REFERENCE_BASE64__', files[gate.VERIFY_JS])
             self.assertNotIn(b'__EXPECTED_HEADERS__', files[gate.VERIFY_JS])
+            self.assertIn(b'htmlDiagnostics', files[gate.VERIFY_JS])
+            for html_path in ("index.html", PREFIX + "index.html"):
+                self.assertIn(base64.b64encode(files[html_path]), files[gate.VERIFY_JS])
             sri = ("sha384-" + base64.b64encode(
                 hashlib.sha384(files[gate.VERIFY_JS]).digest()).decode()).encode()
             self.assertIn(sri, files[gate.VERIFY_HTML])

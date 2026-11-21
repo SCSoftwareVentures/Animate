@@ -34,7 +34,17 @@ class HeaderFixture(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self):
-        if self.server.tamper_js and urlsplit(self.path).path == "/operator-preview/app.js":
+        served_path = urlsplit(self.path).path
+        if self.server.tamper_html and served_path in ("/index.html", "/operator-preview/index.html"):
+            document = (Path(self.directory) / served_path.lstrip("/")).read_bytes()
+            data = document + b"\n<!-- .netlify/scripts/hud simulated edge injection -->\n"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if self.server.tamper_js and served_path == "/operator-preview/app.js":
             data = ((Path(self.directory) / "operator-preview" / "app.js").read_bytes() +
                     b"\n// unexpected altered served bytes\n")
             self.send_response(200)
@@ -46,10 +56,11 @@ class HeaderFixture(SimpleHTTPRequestHandler):
         super().do_GET()
 
 
-def test_case(site, tamper_js=False, omit_header=None):
+def test_case(site, tamper_js=False, tamper_html=False, omit_header=None):
     server = ThreadingHTTPServer(
         ("127.0.0.1", 0), functools.partial(HeaderFixture, directory=str(site)))
     server.tamper_js = tamper_js
+    server.tamper_html = tamper_html
     server.omit_header = omit_header
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
@@ -80,7 +91,7 @@ def test_case(site, tamper_js=False, omit_header=None):
                     raise AssertionError("Verifier caused JS errors: " + str(errors))
                 if result["expectedFiles"] != 7 or result["expectedGetAndHeadHeaders"] != 14:
                     raise AssertionError("Missing approved application audit coverage: " + str(result))
-                if not tamper_js and not omit_header:
+                if not tamper_js and not tamper_html and not omit_header:
                     assert result["result"] == "PASS", result
                     assert result["checkedFiles"] == 7, result
                     assert result["checkedGetAndHeadHeaders"] == 14, result
@@ -91,6 +102,15 @@ def test_case(site, tamper_js=False, omit_header=None):
                     assert result["result"] == "FAIL", result
                     assert any("app.js" in x and "SHA-256 mismatch" in x for x in result["failures"]), result
                     print("PASS altered app script fails cryptographic gate", flush=True)
+                elif tamper_html:
+                    assert result["result"] == "FAIL", result
+                    assert result["checkedFiles"] == 5, result
+                    diagnostics = result.get("htmlDiagnostics", [])
+                    assert {d["path"] for d in diagnostics} == {
+                        "index.html", "operator-preview/index.html"}, result
+                    assert all(d["servedBytes"] > d["expectedBytes"] for d in diagnostics), result
+                    assert all(d["netlifyHudMarkerDetected"] for d in diagnostics), result
+                    print("PASS source-unapproved injected HTML fails with bounded diagnostics", flush=True)
                 elif omit_header:
                     assert result["result"] == "FAIL", result
                     assert any(omit_header in x for x in result["failures"]), result
@@ -114,6 +134,7 @@ def main():
         raise SystemExit("BLOCKED: invalid unpacked camera-gate ZIP")
     test_case(site)
     test_case(site, tamper_js=True)
+    test_case(site, tamper_html=True)
     test_case(site, omit_header="Permissions-Policy")
 
 
