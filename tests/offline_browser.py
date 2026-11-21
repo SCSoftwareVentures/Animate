@@ -135,9 +135,15 @@ with sync_playwright() as p:
     pg.locator('#view').click(position={'x':145,'y':120})
     check('calibration accepts saturated object',pg.locator('#start').is_enabled())
     pg.click('#start')
-    for x in [.5,.17,.83]:
-        pg.evaluate('(x)=>window.blobX=x',x)
-        pg.wait_for_timeout(650)
+    # On CI hosts, headless captureStream frames may be delayed under load.
+    # Assert each genuine scored transition, not elapsed wall time, and fail if
+    # the existing detector never earns its dwell threshold within the bound.
+    for score, x in enumerate([.5,.17,.83], start=1):
+        pg.evaluate('(x)=>window.blobX=x', x)
+        pg.wait_for_function(
+            '(n)=>document.querySelector("#score").textContent.startsWith(n+" /")',
+            arg=score, timeout=6000
+        )
     check('synthetic canvas camera completes correct sequence', pg.locator('#score').inner_text()=='3 / 3',
           pg.locator('#score').inner_text())
     rec=record(pg)
