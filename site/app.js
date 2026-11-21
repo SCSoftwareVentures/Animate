@@ -70,6 +70,7 @@ let unreadableFiles = 0;
 const tracker = C.createZoneTracker();
 const probe = C.createRecognitionProbe();
 const deviceBench = C.createDeviceBench();
+const zoneControl = C.createZoneControlProbe();
 let probeSamples = [];
 
 function setStatus(message) {
@@ -225,6 +226,10 @@ async function preventSleep() {
   catch (_) { /* Optional only. Tested iPhone behaviour unknown. */ }
 }
 function stopCamera() {
+  if (zoneControl.active()) {
+    zoneControl.finish(performance.now(), 'camera_stopped');
+    refreshZoneControl();
+  }
   if (deviceBench.active()) {
     deviceBench.finish(performance.now(), 'camera_stopped');
     refreshDeviceBench();
@@ -256,6 +261,10 @@ function stopCamera() {
   updateTarget();
 }
 function cameraFailure(message, error) {
+  if (zoneControl.active()) {
+    zoneControl.finish(performance.now(), 'interrupted');
+    refreshZoneControl();
+  }
   deviceBench.noteInterruption(performance.now());
   refreshDeviceBench();
   stopCamera();
@@ -276,6 +285,10 @@ function beginFrameWatch(video) {
   video.requestVideoFrameCallback(callback);
 }
 function markInterrupted(message) {
+  if (zoneControl.active()) {
+    zoneControl.finish(performance.now(), 'interrupted');
+    refreshZoneControl();
+  }
   deviceBench.noteInterruption(performance.now());
   refreshDeviceBench();
   cancelProbe('Camera interrupted: unfinished sample discarded.');
@@ -356,8 +369,13 @@ function onCameraLoop() {
       $('benchStatus').textContent = `Fresh frames: ${result.frames} / ${result.target}`;
       if (result.frames >= C.PROBE_FRAMES) finishProbe();
     }
+    const observedForControl = p;
     if (p?.ambiguous) { setStatus(detectorKind === 'hand' ? 'Multiple hands detected. Show exactly one hand.' :
       'Multiple foreground regions detected. Remove the distractor.'); p = null; }
+    if (zoneControl.active()) {
+      zoneControl.add(observedForControl, now);
+      if (!zoneControl.active()) refreshZoneControl();
+    }
     lastPosition = p;
     if (run && !run.done) observe(p, now);
     else if (!run) setStatus(detectorKind === 'hand' ? (p ? 'One hand detected. Start a challenge.' : 'No single hand detected.') :
@@ -468,7 +486,9 @@ function handleTap(x, y) {
   }
 }
 function startChallenge() {
-  if (probe.active) { setStatus('Finish or cancel the diagnostic sample before starting a challenge.'); return; }
+  if (probe.active || zoneControl.active()) {
+    setStatus('Finish the operator-only camera diagnostic before starting a challenge.'); return;
+  }
   if (!input || (input === 'camera' && (!(detectorKind === 'foreground' ? foreground.ready : detectorKind === 'hand' ? hand.ready : reference) ||
       backgroundCapture || interrupted || stale || !frameNumber || performance.now() - lastFrameAt > 1500))) {
     setStatus('Camera is not calibrated or current. Restart it if necessary.'); return;
@@ -554,6 +574,10 @@ function startProbe() {
     $('benchStatus').textContent = 'Enable a fresh camera feed and calibrate first.';
     return;
   }
+  if (zoneControl.active()) {
+    $('benchStatus').textContent = 'Finish the zone-control trial before starting a benchmark.';
+    return;
+  }
   if (run && !run.done) resetChallenge();
   probe.start({ colour: $('benchColour').value, light: $('benchLight').value,
     background: $('benchBackground').value, expected: $('benchExpected').value });
@@ -599,6 +623,23 @@ function showAggregate() {
     privacy: 'Ledger loaded only in memory. Never commit participant exports or ledger to a public repository.'
   }, null, 2);
 }
+function refreshZoneControl() {
+  if (!DEBUG) return;
+  const summary = zoneControl.snapshot(performance.now());
+  $('zoneControlStart').disabled = zoneControl.active();
+  $('zoneControlFinish').disabled = !zoneControl.active();
+  $('zoneControlExpected').disabled = zoneControl.active();
+  $('zoneControlStatus').textContent = summary.status === 'not_started' ?
+    'No operator-labelled control measured.' :
+    summary.status === 'running' ?
+      'Analysing fresh frames for one self-labelled static condition. Avoid switching scenes.' :
+    summary.complete ? 'Data coverage recorded. Review the manually labelled counts; accuracy remains unverified.' :
+    summary.status === 'insufficient_coverage' ?
+      'INSUFFICIENT COVERAGE: frames, elapsed time or continuity were inadequate. Repeat this control.' :
+      'Incomplete control (' + summary.status + '). Do not count as completed evidence.';
+  $('zoneControlReport').textContent = JSON.stringify(summary, null, 2);
+}
+
 function refreshDeviceBench() {
   if (!DEBUG) return;
   const summary = deviceBench.snapshot(performance.now());
@@ -618,6 +659,7 @@ function updateDiagnostics(fps = 0, renderFps = 0) {
   if (!DEBUG) return;
   deviceBench.noteWindow(performance.now(), fps, renderFps);
   refreshDeviceBench();
+  if (zoneControl.active()) refreshZoneControl();
   const track = stream?.getVideoTracks()?.[0];
   const settings = track?.getSettings?.() || {};
   $('dbgbox').hidden = false;
@@ -725,6 +767,7 @@ $('reset').addEventListener('click', () => {
   if (!confirm('Delete your local ANIMATE records on this device? Previously exported copies are not deleted.')) return;
   stopCamera();
   deviceBench.reset(); refreshDeviceBench();
+  zoneControl.reset(); refreshZoneControl();
   let deletion = { ok: false, removed: 0, failed: 1 };
   try { deletion = C.deleteLocalResearchData(localStorage); } catch (_) { /* Local storage can be blocked. */ }
   record = null;
@@ -765,6 +808,38 @@ $('ledger').addEventListener('change', async event => {
 if (DEBUG) {
   $('dbgbox').hidden = false;
   refreshDeviceBench();
+  refreshZoneControl();
+  $('zoneControlStart').addEventListener('click', () => {
+    if (!stream || input !== 'camera' || interrupted || stale || calibrating ||
+        backgroundCapture || probe.active || (run && !run.done) ||
+        !(detectorKind === 'foreground' ? foreground.ready :
+          detectorKind === 'hand' ? hand.ready : reference) ||
+        !lastFrameAt || frameNumber === 0 || performance.now() - lastFrameAt > 1500) {
+      $('zoneControlStatus').textContent =
+        'Control blocked: enable and calibrate a fresh live camera, with no active challenge.';
+      return;
+    }
+    zoneControl.begin(performance.now(), $('zoneControlExpected').value, detectorKind);
+    refreshZoneControl();
+  });
+  $('zoneControlFinish').addEventListener('click', () => {
+    if (zoneControl.active()) zoneControl.finish(performance.now(), 'manual');
+    refreshZoneControl();
+  });
+  $('zoneControlCopy').addEventListener('click', async () => {
+    const summary = zoneControl.snapshot(performance.now());
+    if (summary.status === 'not_started') {
+      $('zoneControlStatus').textContent = 'No control counts exist to copy.';
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(summary, null, 2));
+      $('zoneControlCopy').textContent = 'Control counts copied';
+    } catch (_) {
+      $('zoneControlStatus').textContent =
+        'Clipboard unavailable. Select and copy the numeric counts manually.';
+    }
+  });
   $('deviceBenchStart').addEventListener('click', () => {
     if (!stream || input !== 'camera' || interrupted || stale ||
         !lastFrameAt || frameNumber === 0 || performance.now() - lastFrameAt > 1500) {

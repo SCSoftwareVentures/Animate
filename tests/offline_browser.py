@@ -275,7 +275,21 @@ with sync_playwright() as p:
           not any(k in report for k in ['userAgent','participantId','id','frameData','lastPosition']) and
           all('ANIMATE_LOCAL_DEVICE_PERFORMANCE_SAMPLE' not in json.dumps(e)
               for e in record(pg)['events']))
-    check('debug device sampling has no JavaScript errors',not errs,str(errs))
+    pg.select_option('#zoneControlExpected','absent')
+    pg.click('#zoneControlStart')
+    pg.wait_for_timeout(450)
+    pg.click('#zoneControlFinish')
+    zone_report=json.loads(pg.locator('#zoneControlReport').inner_text())
+    check('debug zone control samples fresh camera detections and marks early stop incomplete',
+          zone_report['expectedCondition']=='absent' and
+          zone_report['status']=='manual' and
+          not zone_report['complete'] and
+          zone_report['analysedFrames']>0)
+    check('zone negative-control is a self-labelled proxy and never changes participant research events',
+          zone_report['independentlyVerified'] is False and
+          zone_report['userDemandMeasured'] is False and
+          not any('ZONE_CONTROL' in json.dumps(e) for e in record(pg)['events']))
+    check('debug device sampling and negative controls have no JavaScript errors',not errs,str(errs))
     c.close();b.close()
 
 bad=[name for name, ok in checks if not ok]
