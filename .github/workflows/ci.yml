@@ -45,6 +45,8 @@ jobs:
         run: python tests/test_screenshot_isolation_canary.py
       - name: Test exact model-free operator preview ZIP, privacy and neutral-root gate
         run: python tests/test_operator_preview.py
+      - name: Test source-verified Safari camera header/hash verification package
+        run: python tests/test_iphone_camera_gate.py
       - name: Adversarially audit self-reported iPhone evidence without personal data or uploads
         run: python tests/test_iphone_evidence.py
       - name: Cross-check real JavaScript evidence packets against Python audit contracts
@@ -79,6 +81,13 @@ jobs:
           python -m zipfile -e "$RUNNER_TEMP/animate-operator/package/animate-operator-only-preview.zip" "$RUNNER_TEMP/animate-operator/unpacked"
           python tests/test_operator_preview_webkit.py --site-dir "$RUNNER_TEMP/animate-operator/unpacked"
           python tests/test_webkit_smoke.py --site-dir "$RUNNER_TEMP/animate-operator/unpacked/operator-preview" --baseline
+      - name: Test authenticated Safari gate in Linux WebKit with changed-byte and missing-header faults
+        run: |
+          mkdir -p "$RUNNER_TEMP/animate-camera-gate"
+          python tools/build_iphone_camera_gate.py --output-dir "$RUNNER_TEMP/animate-camera-gate/package"
+          mkdir -p "$RUNNER_TEMP/animate-camera-gate/unpacked"
+          python -m zipfile -e "$RUNNER_TEMP/animate-camera-gate/package/animate-verified-iphone-preview.zip" "$RUNNER_TEMP/animate-camera-gate/unpacked"
+          python tests/test_iphone_camera_gate_webkit.py --site-dir "$RUNNER_TEMP/animate-camera-gate/unpacked"
       - name: Run offline browser regression suite
         run: python tests/offline_browser.py && python tests/test_hand_browser.py
       - name: Run synthetic camera browser suite over localhost
@@ -114,5 +123,14 @@ jobs:
         with:
           name: animate-operator-preview-${{ github.sha }}
           path: ${{ runner.temp }}/animate-operator/package/animate-operator-only-preview.zip
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Provide owner-downloadable Safari camera-gate ZIP (no deployment)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: animate-safari-camera-gate-${{ github.sha }}
+          path: ${{ runner.temp }}/animate-camera-gate/package/animate-verified-iphone-preview.zip
           if-no-files-found: error
           retention-days: 3
