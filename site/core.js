@@ -228,7 +228,7 @@ const dateOK = s => {
 
 // Client-generated events are NOT authenticated. These checks improve metric consistency,
 // not fraud resistance. Decision-grade counts also require an independent recruitment ledger.
-function sanitizeRecord(r) {
+function sanitizeRecord(r, retainPrivate = false) {
   if (!r || typeof r !== 'object' || Array.isArray(r) || r.version !== SCHEMA_VERSION ||
       r.build !== BUILD || typeof r.id !== 'string' || !/^[a-zA-Z0-9-]{8,80}$/.test(r.id) ||
       !dateOK(r.created) || !dayOK(r.createdDay) || !Array.isArray(r.events) ||
@@ -263,6 +263,17 @@ function sanitizeRecord(r) {
     if (e.type === 'problem_response' && typeof e.answer === 'string' &&
         e.answer.trim().length > 0 && e.answer.trim().length <= 240) {
       safe.feedbackProvided = true;
+      // Only an explicit local-record projection retains participant free text.
+      if (retainPrivate) safe.answer = e.answer.trim();
+    }
+    if (retainPrivate && e.type === 'camera_error') {
+      if (typeof e.reason === 'string' && e.reason.length <= 200) safe.reason = e.reason;
+      if (typeof e.name === 'string' && /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(e.name)) safe.name = e.name;
+    }
+    if (retainPrivate && e.type === 'camera_ready' &&
+        ['user', 'environment'].includes(e.facing)) safe.facing = e.facing;
+    if (retainPrivate && e.type === 'calibrated' && typeof e.skinLike === 'boolean') {
+      safe.skinLike = e.skinLike;
     }
     if (e.type === 'benchmark_sample' && e.sample && typeof e.sample === 'object') {
       const s = e.sample;
@@ -287,6 +298,23 @@ function sanitizeRecord(r) {
   return { id: r.id, version: r.version, build: r.build, device: r.device,
     role: r.role ?? 'Unspecified',
     created: r.created, createdDay: r.createdDay, exportedAt: r.exportedAt ?? null, events };
+}
+
+/**
+ * Local-storage and download projection. Browser storage is untrusted: never restore
+ * or export arbitrary keys, nested data, or unlimited strings from an edited record.
+ * Keep only bounded participant feedback and the app's known diagnostic event fields.
+ * Aggregation still calls sanitizeRecord() without private text.
+ */
+function sanitizeLocalRecord(raw) {
+  const clean = sanitizeRecord(raw, true);
+  if (!clean) return null;
+  // The aggregate-only placeholder is not an enrolment choice; retain legacy omission.
+  if (raw.role === undefined) delete clean.role;
+  const day = raw.lastDay;
+  const elapsedDays = dayOK(day) ? dayDiff(clean.createdDay, day) : -1;
+  clean.lastDay = elapsedDays >= 0 && elapsedDays <= 365 ? day : clean.createdDay;
+  return clean;
 }
 
 function recordMetrics(r) {
@@ -420,7 +448,7 @@ function deleteLocalResearchData(storage) {
 }
 
 const core = { BUILD, SCHEMA_VERSION, MAX_EVENTS, clamp, rgb2hsv, hueDist, sampleReference,
-  skinLike, locate, createZoneTracker, localDay, dayDiff, modes, roles, sanitizeRecord, ledgerKey,
+  skinLike, locate, createZoneTracker, localDay, dayDiff, modes, roles, sanitizeRecord, sanitizeLocalRecord, ledgerKey,
   recordMetrics, summarize, PROBE_FRAMES, probeColours, probeLights, probeBackgrounds,
   probeExpected, createRecognitionProbe, calibrationCandidate, deleteLocalResearchData };
 if (typeof module !== 'undefined' && module.exports) module.exports = core;
