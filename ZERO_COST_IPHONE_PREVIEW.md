@@ -62,3 +62,12 @@ The builder is deliberately **not** a Netlify client: it makes no web requests a
 This option supersedes the earlier **potentially billable Codespaces** proposal as the preferred route, without cancelling or merging historical PRs. Netlify/its CDN can still observe request metadata even if browser video frames remain local. Separate operator privacy approval is mandatory before using a real camera or recruiting anyone.
 
 This is an engineering candidate—not a promise that Netlify Free currently enables all required mobile features, not a signed service agreement, not a published app and not evidence of demand.
+
+
+## November 2026 provider research and harmless access-canary preflight
+
+See [HOSTING_RESEARCH_AND_OWNER_RUNBOOK.md](HOSTING_RESEARCH_AND_OWNER_RUNBOOK.md) for updated provider-sourced evidence and an explicit canary-first route. Official Netlify documentation now confirms credit-based Free **Private project visibility is enforced through Netlify login**, but it has not been tested for this owner's account or for production/preview/path aliases. Netlify's edge-injected private pre-launch toolbar may modify hosted HTML, conflicting with ANIMATE's strict source-hash audit; **never weaken the CSP or HTML equality gate to make a provider pass**.
+
+The repository now prepares \`tools/build_host_canary.py\` and its tests to generate a clearly labelled, **non-ANIMATE**, no-camera/static canary ZIP for future separately authorised access-control tests. No canary or ANIMATE app was deployed; do not publish or upload either ZIP without a new owner approval. Netlify's ZIP/folder web upload instructions recommend desktop/Chromium, so actual iPhone Safari-only deployment usability remains unverified. Cloudflare Pages Access is a fallback only if production and preview hostnames are both protected. Vercel Hobby is excluded because commercial projects are not permitted under its free plan.
+
+A provider account and live HTTP/asset/header audit remain required before **any** physical iPhone camera evaluation; this update is NOT host approval.
