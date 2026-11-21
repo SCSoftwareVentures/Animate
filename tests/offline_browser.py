@@ -497,6 +497,56 @@ with sync_playwright() as p:
     check('delayed video-play cancellation has no browser exceptions',not errs,str(errs))
     c.close();b.close()
 
+
+    # Regression for a strict terminal race: a performance trial already has
+    # adequate 59-second coverage, then its camera track is ended just before
+    # the 60th window. It must NOT be exported as a completed/timed sample.
+    # The synthetic fixtures are an adversarial logic test, not measured FPS.
+    b,c,pg,errs=prepare(p,camera=True,debug=True)
+    enrol(pg)
+    pg.locator('#dbgbox summary').click()
+    pg.fill('#packetCommit','b'*40)
+    pg.check('#packetPhysical')
+    pg.check('#packetRegistered')
+    pg.click('#packetBegin')
+    pg.click('#camera')
+    pg.wait_for_timeout(550)
+    pg.locator('#view').click(position={'x':145,'y':120})
+    pg.click('#deviceBenchStart')
+    check('camera sample is initially active before terminal media-health race',
+          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='running')
+    pg.evaluate("""() => {
+      const now=performance.now();
+      const start=now-60000;
+      deviceBench.begin(start,'colour');
+      for(let i=1;i<60;i++) {
+        deviceBench.noteLatency(8);
+        deviceBench.noteWindow(start+i*1000,18,60);
+      }
+      // Fake an ended track with no event delivery. A naive timer-first loop
+      // would accept this dense fixture as a successful 60-second sample.
+      const track=stream.getVideoTracks()[0];
+      Object.defineProperty(track,'readyState',{
+        configurable:true,get:()=> 'ended'
+      });
+      fpsAt=performance.now()-1500;
+    }""")
+    pg.wait_for_function("""() => {
+      return JSON.parse(document.querySelector('#deviceBenchReport').textContent).status !== 'running';
+    }""",timeout=5000)
+    race=json.loads(pg.locator('#deviceBenchReport').inner_text())
+    check('ended camera track preempts the apparently complete final performance window',
+          race['status']=='interrupted' and race['complete'] is False and
+          race['interruptions']>=1 and race['observedMs']==60000 and
+          race['sampleWindows']==59)
+    packet=pg.evaluate('packetRecorder.packet()')
+    check('operator evidence packet retains failed terminal camera attempt as incomplete',
+          len(packet['performanceTrials'])==1 and
+          packet['performanceTrials'][0]['report']['status']=='interrupted' and
+          packet['performanceTrials'][0]['report']['complete'] is False)
+    check('terminal camera failure regression has no JavaScript exceptions',not errs,str(errs))
+    c.close();b.close()
+
 bad=[name for name, ok in checks if not ok]
 print(f"\n{len(checks)-len(bad)}/{len(checks)} baseline offline browser checks passed",flush=True)
 sys.exit(1 if bad else 0)

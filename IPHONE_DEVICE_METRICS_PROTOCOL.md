@@ -37,3 +37,7 @@ The numeric report includes:
 This instrument is for the model-free operator baseline until the MediaPipe redistribution gate is actually resolved. All code remains unmerged. Neither this tool nor these instructions create an external host, a public/private preview, model distribution permission or consent to recruit participants.
 
 See [the owner-controlled preview decision gate](IPHONE_PREVIEW_DECISION_GATE.md), [the physical Safari protocol](SAFARI_DEVICE_TEST.md) and [exact runtime rights blocker](HAND_ML_ASSET_GATE.md).
+
+## Terminal track failure precedence
+
+At the end of a 60-second diagnostic, a camera track can transition to muted, ended or stale between two animation frames. The app now checks current camera health **before** committing the final timed sampling window. Such a terminal fault is recorded as an **interrupted, incomplete** attempt rather than a passing sample, even when almost all prior windows were adequate. An adversarial simulated-camera regression checks an ended track without an `ended` event at the exact timer boundary; this is not real iPhone device evidence.

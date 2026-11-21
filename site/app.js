@@ -347,18 +347,27 @@ function onCameraLoop() {
   const video = $('video');
   const now = performance.now();
   fpsCounter++;
-  if (now - fpsAt >= 1000) {
-    updateDiagnostics(analysedFpsCounter * 1000 / (now - fpsAt),
-      fpsCounter * 1000 / (now - fpsAt));
-    fpsCounter = 0; analysedFpsCounter = 0; fpsAt = now;
-  }
   if (!video.requestVideoFrameCallback && video.readyState >= 2 &&
       video.currentTime !== lastMediaTime) {
     lastMediaTime = video.currentTime;
     lastFrameAt = now;
     frameNumber++;
   }
+  // TERMINAL ORDERING: a track may go mute/end immediately before the final
+  // 60-second sampling window. noteWindow() can finalise a 'timed' result, so
+  // failed-media checks must interrupt the attempt BEFORE updateDiagnostics().
+  // The ordinary track health branch below still resets camera calibration.
   const track = stream.getVideoTracks()[0];
+  if (deviceBench.active() && (!track || track.readyState !== 'live' || track.muted ||
+      !lastFrameAt || now - lastFrameAt > 1500)) {
+    deviceBench.noteInterruption(now);
+    refreshDeviceBench();
+  }
+  if (now - fpsAt >= 1000) {
+    updateDiagnostics(analysedFpsCounter * 1000 / (now - fpsAt),
+      fpsCounter * 1000 / (now - fpsAt));
+    fpsCounter = 0; analysedFpsCounter = 0; fpsAt = now;
+  }
   if (!track || track.readyState !== 'live' || track.muted) {
     if (!interrupted) markInterrupted('Camera interrupted. Restart camera before continuing.');
   } else if (!lastFrameAt || now - lastFrameAt > 1500) {
