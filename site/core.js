@@ -426,6 +426,9 @@ function createDeviceBench(durationMs = 60000) {
   }
   let started = null, ended = null, detector = null, outcome = 'not_started';
   let windows = [], inference = [], totalCalls = 0, latencyOverLimit = 0, interruptions = 0;
+  let lastWindowAt = null, largestSamplingGapMs = 0, rejectedWindows = 0;
+  const requiredWindows = Math.max(1, Math.ceil(durationMs / 1000 * .8));
+  const maxPermittedGapMs = 2500;
   const round = n => Math.round(n * 10) / 10;
   const quantile = (values, p) => {
     if (!values.length) return null;
@@ -440,9 +443,18 @@ function createDeviceBench(durationMs = 60000) {
     max: values.length ? round(Math.max(...values)) : null
   });
   const active = () => started !== null && ended === null;
+  function coverageIsSufficient() {
+    const positiveWindows = windows.filter(w => w.analysedFps > 0).length;
+    return windows.length >= requiredWindows && positiveWindows >= requiredWindows &&
+      totalCalls >= requiredWindows && rejectedWindows === 0 &&
+      largestSamplingGapMs <= maxPermittedGapMs &&
+      lastWindowAt !== null &&
+      lastWindowAt - started >= durationMs - maxPermittedGapMs;
+  }
   function reset() {
     started = null; ended = null; detector = null; outcome = 'not_started';
     windows = []; inference = []; totalCalls = 0; latencyOverLimit = 0; interruptions = 0;
+    lastWindowAt = null; largestSamplingGapMs = 0; rejectedWindows = 0;
   }
   function begin(now, method) {
     if (!Number.isFinite(now) || now < 0 || !['colour', 'foreground', 'hand'].includes(method)) {
@@ -457,14 +469,21 @@ function createDeviceBench(durationMs = 60000) {
     if (!['manual', 'timed', 'camera_stopped', 'interrupted'].includes(reason)) {
       throw Error('Invalid diagnostic result');
     }
-    ended = Math.min(now, started + durationMs); outcome = reason;
+    ended = Math.min(now, started + durationMs);
+    outcome = reason === 'timed' && !coverageIsSufficient() ?
+      'insufficient_coverage' : reason;
     return snapshot(now);
   }
   function noteWindow(now, analysedFps, rafFps) {
     if (!active()) return;
     if (![now, analysedFps, rafFps].every(Number.isFinite) ||
-        now < started || analysedFps < 0 || analysedFps > 240 ||
-        rafFps < 0 || rafFps > 240) return;
+        now <= (lastWindowAt ?? started) || analysedFps < 0 || analysedFps > 240 ||
+        rafFps < 0 || rafFps > 240) {
+      rejectedWindows++;
+      return;
+    }
+    largestSamplingGapMs = Math.max(largestSamplingGapMs, now - (lastWindowAt ?? started));
+    lastWindowAt = now;
     if (windows.length < 120) windows.push({analysedFps, rafFps});
     if (now - started >= durationMs) finish(now, 'timed');
   }
@@ -486,12 +505,18 @@ function createDeviceBench(durationMs = 60000) {
       kind: 'ANIMATE_LOCAL_DEVICE_PERFORMANCE_SAMPLE', build: BUILD, detector,
       status: outcome, complete: outcome === 'timed', plannedMs: durationMs,
       observedMs: Math.round(elapsed), sampleWindows: windows.length,
+      coverage: { requiredWindows, positiveAnalysedWindows:
+        windows.filter(w => w.analysedFps > 0).length,
+        largestGapMs: round(largestSamplingGapMs), rejectedWindows,
+        sufficient: coverageIsSufficient() && elapsed >= durationMs },
       analysedFps: distribution(windows.map(w => w.analysedFps)),
       animationLoopFps: distribution(windows.map(w => w.rafFps)),
       inferenceMs: distribution(inference), inferredFrames: totalCalls,
       unmeasuredLatencySamples: latencyOverLimit, interruptions,
+      evidenceType: 'UNVERIFIED_LOCAL_PERFORMANCE_PROXY',
+      recognitionAccuracyMeasured: false, commercialDemandMeasured: false,
       contents: 'Numeric performance only. No video, coordinates, IDs, user agent or network upload.',
-      limitations: 'A local self-test only; frame analysis FPS is not sensor FPS, and this is not recognition accuracy, thermal or battery evidence.'
+      limitations: 'Duration alone cannot pass: requires 80% observed and positive analysed windows, inference calls and no sampling gaps over 2.5 seconds. This does not establish sensor FPS, detection accuracy, battery, thermals, real-device provenance or commercial demand.'
     };
   }
   return { begin, finish, reset, noteWindow, noteLatency, noteInterruption, snapshot, active };
