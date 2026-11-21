@@ -292,8 +292,16 @@ with sync_playwright() as p:
           'Measurement blocked:' in pg.locator('#deviceBenchStatus').inner_text() and
           json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='not_started')
     pg.click('#camera');pg.wait_for_timeout(550)
+    pg.click('#deviceBenchStart')
+    check('camera performance evidence is blocked before calibration',
+          'Measurement blocked:' in pg.locator('#deviceBenchStatus').inner_text() and
+          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='not_started')
     pg.locator('#view').click(position={'x':145,'y':120})
     pg.click('#deviceBenchStart')
+    pg.click('#zoneControlStart')
+    check('zone controls cannot overlap an active camera performance measurement',
+          'Control blocked: finish the 60-second' in pg.locator('#zoneControlStatus').inner_text() and
+          json.loads(pg.locator('#zoneControlReport').inner_text())['status']=='not_started')
     pg.wait_for_timeout(1400)
     pg.click('#deviceBenchFinish')
     report=json.loads(pg.locator('#deviceBenchReport').inner_text())
@@ -312,6 +320,10 @@ with sync_playwright() as p:
               for e in record(pg)['events']))
     pg.select_option('#zoneControlExpected','absent')
     pg.click('#zoneControlStart')
+    pg.click('#deviceBenchStart')
+    check('camera performance measurements cannot overlap active zone controls',
+          'Measurement blocked: finish the 10-second' in pg.locator('#deviceBenchStatus').inner_text() and
+          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='manual')
     pg.wait_for_timeout(450)
     pg.click('#zoneControlFinish')
     zone_report=json.loads(pg.locator('#zoneControlReport').inner_text())

@@ -884,6 +884,10 @@ if (DEBUG) {
   refreshZoneControl();
   refreshPacketSummary();
   $('packetBegin').addEventListener('click', () => {
+    if (deviceBench.active() || zoneControl.active() || probe.active || (run && !run.done)) {
+      refreshPacketSummary('Packet blocked: finish current diagnostics or challenge before registering a protocol.');
+      return;
+    }
     try {
       packetRecorder.begin($('packetCommit').value.trim(), $('detector').value,
         $('packetPhysical').checked, $('packetRegistered').checked);
@@ -928,6 +932,11 @@ if (DEBUG) {
     }
   });
   $('zoneControlStart').addEventListener('click', () => {
+    if (deviceBench.active()) {
+      $('zoneControlStatus').textContent =
+        'Control blocked: finish the 60-second performance sample before another independent trial.';
+      return;
+    }
     if (!stream || input !== 'camera' || interrupted || stale || calibrating ||
         backgroundCapture || probe.active || (run && !run.done) ||
         !(detectorKind === 'foreground' ? foreground.ready :
@@ -963,10 +972,18 @@ if (DEBUG) {
     }
   });
   $('deviceBenchStart').addEventListener('click', () => {
-    if (!stream || input !== 'camera' || interrupted || stale ||
+    if (zoneControl.active()) {
+      $('deviceBenchStatus').textContent =
+        'Measurement blocked: finish the 10-second zone control before another independent trial.';
+      return;
+    }
+    if (!stream || input !== 'camera' || interrupted || stale || calibrating ||
+        backgroundCapture || probe.active || (run && !run.done) ||
+        !(detectorKind === 'foreground' ? foreground.ready :
+          detectorKind === 'hand' ? hand.ready : reference) ||
         !lastFrameAt || frameNumber === 0 || performance.now() - lastFrameAt > 1500) {
       $('deviceBenchStatus').textContent =
-        'Measurement blocked: enable a live camera and analyse fresh frames first.';
+        'Measurement blocked: enable and calibrate a live camera with fresh frames and no active challenge.';
       return;
     }
     if (!allowPacketMethod()) return;
