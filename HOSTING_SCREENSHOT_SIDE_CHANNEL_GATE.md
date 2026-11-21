@@ -62,3 +62,8 @@ Cloudflare documentation describes free Pages static deployment (dashboard Direc
 - **Physical iPhone Safari and commercial outreach: BLOCKED** until operator approval and broader hosted privacy verification. Full MediaPipe rights gate remains independently blocked.
 
 Do not declare the root isolation a verified secure-host result after seeing a single sanitized screenshot. Record negative evidence and reject any assumption that a private site means its derivative images are private.
+
+
+## Bounded transition from canaries to one actual operator preview (not yet deployed)
+
+See [OPERATOR_IPHONE_PREVIEW_ACCEPTANCE.md](OPERATOR_IPHONE_PREVIEW_ACCEPTANCE.md). The next executable candidate reuses the **tested script-free neutral root** and nests the existing, source-verified six-file model-free ANIMATE baseline under \`/operator-preview/\`. It contains no unapproved MediaPipe binaries, secrets or participant records. The whole project remains Netlify Free/Private team SSO; even so, screenshots remain publicly retrievable and this is NOT a hosting screenshot confidentiality fix. No more repeated canary iterations are justified without new evidence. Separately approved owner-only camera testing may be considered only after reviewing the residual risk and passing the fresh live hosted audit; **never silently treat a passed neutral screenshot as security clearance for private app content**.
