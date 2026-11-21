@@ -23,6 +23,16 @@ The ChatGPT conversation, GitHub code browser and downloaded HTML files are not 
 
 The checkout contains only the six text assets. After approval of a host and a privacy/disclosure review, an operator-only, access-controlled HTTPS baseline may measure iPhone permission, canvas, colour/foreground camera, touch accessibility, pause/resume and local data deletion **without shipping any MediaPipe binary**. The Local ML menu must be clearly marked unavailable on this baseline. This cannot validate AI model performance.
 
+### Gate A implementation — verified candidate only, never a deployment
+
+The repository includes `tools/build_baseline_preview.py`, which creates an **offline, non-distributed candidate** in a new directory *outside the repository*. It copies exactly the six app assets, removes the Local ML selector, includes an accessible disclosure, and writes a SHA-256 source-commit manifest outside the served `site/` folder.
+
+CI additionally runs the result through Linux WebKit with a real loopback origin, including consent, touch-control, pseudonymous export, and local deletion tests. CI destroys the temporary candidate at the end of the job. **No GitHub Pages, preview provider, public URL, downloadable distribution artifact or remote hosting is created.**
+
+A future authorised preview must use the exact inspected candidate, genuine HTTPS and owner-approved access controls. Because baseline camera processing is still user-facing, its privacy notice and hosting traffic/log behaviour require approval before it is served to anyone. The staged candidate **cannot** validate hand ML or count as physical iPhone evidence.
+
+The public GitHub Pages workflow remains manual and also requires an explicit confirmation, an owner-controlled repository approval variable, a three-way exact commit SHA match, and the unchanged `tests/check_release.py --publish` gate. Merely generating a baseline candidate does **not** meet the ML publish checker, does not set approval variables, and does not authorise publication.
+
 ### Gate B: Hand-ML preview
 
 **Not yet authorised or prepared for distribution.** Requires resolved exact runtime/model notices, approved vendor bundle, integrity checks, operator permission for external hosting and the full release security review. Only then test actual fingertip tracking on physical iPhone Safari using [the bench protocol](SAFARI_DEVICE_TEST.md), recording false completions, latency, inferred FPS, reload/start failures, camera revocation, battery and thermal observations.
