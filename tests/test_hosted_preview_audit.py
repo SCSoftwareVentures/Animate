@@ -126,6 +126,17 @@ class PreviewAuditTests(unittest.TestCase):
         with self.assertRaisesRegex(AuditError, "exposes"):
             audit_responses(EXPECTED, fixture(changes))
 
+    def test_rejects_public_model_when_signed_in_users_are_blocked(self):
+        path = FORBIDDEN_PATHS[0]
+        changes = {("GET", path, False): Evidence(200, HEADERS, b"accidentally public model")}
+        with self.assertRaisesRegex(AuditError, "unauthorised visitor"):
+            audit_responses(EXPECTED, fixture(changes))
+
+    def test_rejects_public_manifest_when_signed_in_users_are_blocked(self):
+        changes = {("GET", "/MANIFEST.json", False): Evidence(200, HEADERS, b"{}")}
+        with self.assertRaisesRegex(AuditError, "unauthorised visitor"):
+            audit_responses(EXPECTED, fixture(changes))
+
     def test_rejects_public_manifest(self):
         changes = {("GET", "/MANIFEST.json", True): Evidence(200, HEADERS, b"{}")}
         with self.assertRaisesRegex(AuditError, "exposes"):
