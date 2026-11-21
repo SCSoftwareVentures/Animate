@@ -411,6 +411,7 @@ with sync_playwright() as p:
     # operator-only 60-second performance preflight.
     b,c,pg,errs=prepare(p,camera=True,benchmark=True,debug=True)
     enrol(pg)
+    pg.locator('#dbgbox summary').click()
     pg.click('#camera');pg.wait_for_timeout(550)
     pg.locator('#view').click(position={'x':145,'y':120})
     pg.click('#deviceBenchStart')
