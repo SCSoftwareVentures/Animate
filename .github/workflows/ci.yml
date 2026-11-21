@@ -47,6 +47,8 @@ jobs:
         run: python tests/test_operator_preview.py
       - name: Test source-verified Safari camera header/hash verification package
         run: python tests/test_iphone_camera_gate.py
+      - name: Audit read-only Codespaces private preview static origin and rejection paths
+        run: python tests/test_codespaces_private_preview.py
       - name: Adversarially audit self-reported iPhone evidence without personal data or uploads
         run: python tests/test_iphone_evidence.py
       - name: Cross-check real JavaScript evidence packets against Python audit contracts
@@ -88,6 +90,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/animate-camera-gate/unpacked"
           python -m zipfile -e "$RUNNER_TEMP/animate-camera-gate/package/animate-verified-iphone-preview.zip" "$RUNNER_TEMP/animate-camera-gate/unpacked"
           python tests/test_iphone_camera_gate_webkit.py --site-dir "$RUNNER_TEMP/animate-camera-gate/unpacked"
+      - name: Test same Codespaces static origin in local WebKit; no Codespace created
+        run: python tests/test_codespaces_private_preview_webkit.py
       - name: Run offline browser regression suite
         run: python tests/offline_browser.py && python tests/test_hand_browser.py
       - name: Run synthetic camera browser suite over localhost

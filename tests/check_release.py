@@ -2,6 +2,7 @@
 from html.parser import HTMLParser
 from pathlib import Path
 import hashlib
+import json
 import subprocess
 import sys
 
@@ -107,8 +108,30 @@ if publish or (root / '.git').exists():
 if result.returncode == 0 and result.stdout:
     tracked = [p.decode('utf-8', 'replace') for p in result.stdout.split(b'\0') if p]
     banned = {'.csv','.json','.jsonl','.ndjson','.sqlite','.sqlite3','.db','.db-wal','.db-shm','.zip','.log'}
-    failures = [p for p in tracked if Path(p).suffix.lower() in banned or
+    # The ONLY permitted tracked JSON is a precisely validated safe Codespaces
+    # configuration. Never exempt arbitrary configuration, logs or research data.
+    devcontainer_name = '.devcontainer/devcontainer.json'
+    if devcontainer_name in tracked:
+        config_file = root / devcontainer_name
+        assert (config_file.is_file() and not config_file.is_symlink() and
+                not (root / '.devcontainer').is_symlink()), 'Unsafe devcontainer config path'
+        config = json.loads(config_file.read_text(encoding='utf-8'))
+        assert config == {
+            'name': 'ANIMATE — private iPhone preview (manual start only)',
+            'image': 'mcr.microsoft.com/devcontainers/python:1-3.12-bookworm',
+            'forwardPorts': [8765],
+            'portsAttributes': {
+                '8765': {
+                    'label': 'ANIMATE: PRIVATE owner preview',
+                    'onAutoForward': 'notify',
+                    'protocol': 'http',
+                }
+            }
+        }, 'Unreviewed Codespaces configuration; commands/env/ports are forbidden'
+    failures = [p for p in tracked if (
+                (Path(p).suffix.lower() in banned and p != devcontainer_name) or
                 Path(p).name.startswith('.env') or
-                any(s in p.lower() for s in ('participant-export','respondent-data','research-ledger'))]
+                any(s in p.lower() for s in ('participant-export','respondent-data','research-ledger'))
+            )]
     assert not failures, f'Sensitive file types are tracked in repo: {failures}'
 print('PASS: public site scope and repository hygiene checks')
