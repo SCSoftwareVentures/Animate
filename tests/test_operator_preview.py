@@ -58,10 +58,12 @@ class OperatorPreviewTests(unittest.TestCase):
             self.assertNotIn(b'<option value="hand"', assets[PREFIX + "index.html"])
             self.assertIn(b'id="camera"', assets[PREFIX + "index.html"])
             self.assertIn(b'id="sample"', assets[PREFIX + "index.html"])
+            # Source-only hand_ml.js retains dormant model-path literals; a
+            # missing menu and zero shipped model/WASM bytes are the actual gates.
             for name, data in assets.items():
                 self.assertEqual(hashlib.sha256(data).hexdigest(),
                                  receipt["fileSha256"][name])
-                self.assertNotIn(b"hand_landmarker.task", data)
+                self.assertFalse(name.endswith((".task", ".wasm", ".mjs")))
             with self.assertRaisesRegex(ValueError, "new"):
                 build_operator_preview(output)
             with self.assertRaisesRegex(ValueError, "outside"):
