@@ -16,7 +16,7 @@ The environment used to create this package could not retrieve external binary a
 - `site/app.js`: hand mode wired into camera lifecycle, frame age and interruption gate, three-zone task scoring, independent `detector=hand` and `model` evidence labels. Touch results are never camera completions.
 - `site/core.js`: build 0.7.0/schema 5, requires linked model provenance in hand results, and reports each tracker separately. Pseudonymous exported JSON is editable, **not** cryptographic proof of use.
 - `site/index.html`: camera disclosure and a CSP allowing same-origin model/WASM fetch and `wasm-unsafe-eval` without arbitrary external domains. Real iOS Safari CSP/runtime compatibility is still unverified.
-- `tools/vendor_hand_model.py`: optional operator-controlled asset-acquisition workflow with exact npm version, separately reviewed model SHA-256 requirement, redistribution-review attestation, local copying and SHA-256 manifest. This script was **not executed** here.
+- `tools/vendor_hand_model.py`: stages exact SHA-256-verified runtime/model bytes for private tests outside the checkout. Reviewed installation also requires the pinned licence and attribution file.
 - `tests/check_release.py`: refuses publication while reviewed ML assets are absent, or if present assets fail manifest verification. Detects unexpected published files and tracked sensitive research material.
 
 ## Reproducible local checks
@@ -39,9 +39,9 @@ python tests/e2e.py /usr/bin/chromium
 
 1. Inspect `HAND_ML_ASSET_GATE.md` and conduct an independent review of both the npm runtime and model-weights redistribution terms; record findings. Do **not** assume the runtime's Apache licence covers the separate model bundle.
 2. In a network-enabled engineering environment, run `python tools/vendor_hand_model.py --probe-model-hash`; compare the result against trusted provenance, not merely the same file downloaded twice.
-3. Complete asset and notice review before running the installer. The pinned npm tarball lacks the license text that the installer requires. See [the asset review](HAND_ML_ASSET_GATE.md) for the current blockers.
+3. Use the private stage to run real inference tests. Complete the exact runtime notice and source review before approving redistribution or running the installer. See [the asset review](HAND_ML_ASSET_GATE.md).
 4. Inspect `site/vendor/mediapipe/SHA256SUMS.txt` and `PROVENANCE.txt`, run `python tests/check_release.py --publish` and all the tests, including GitHub full-origin CI. Check the pinned model and WASM file paths against actual package layout.
-5. On a real iPhone using Safari over HTTPS, test fresh-load, latency, 3 scene/lighting conditions, multiple hands, camera permission and interruptions, storage, and battery heat. Compare *hand-control reliability* against touch, not against object classification.
+5. On an operator-owned iPhone over private HTTPS, run the [Safari device checks](SAFARI_DEVICE_TEST.md) for startup, camera permissions, outages, accuracy, accessibility, and thermal behavior.
 6. Record evidence in draft PR #1. **Do not merge, deploy, recruit participants or charge customers** without owner approval and successful gates.
 
 ## Scope and risk

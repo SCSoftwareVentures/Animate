@@ -1,4 +1,5 @@
 """Check exactly what can be published and fail closed on unreviewed model assets."""
+from html.parser import HTMLParser
 from pathlib import Path
 import hashlib
 import subprocess
@@ -7,19 +8,33 @@ import sys
 if not __debug__:
     raise SystemExit('Release validation requires Python assertions to be enabled')
 
-# Pinned MediaPipe Tasks Vision 1.2.3 npm payload and Google Hand Landmarker float16 v1.
-PINNED_ASSET_SHA256 = {
-    'vision_bundle.mjs': 'fb0c02c296f44ce0cc324ba16bd646d8773eb4a7847db4019cc4d0430db7a9b5',
-    'wasm/vision_wasm_internal.js': '2aa5fd3fdd3d8208cd7587df0bb19fb6925c4ea16a76dd025aedc1f64d6a6309',
-    'wasm/vision_wasm_internal.wasm': '225bc06c0f51a9cf31fea0e9e0b0243e9e01fb5ef332cc1a7fa6656dbdfdaabf',
-    'wasm/vision_wasm_module_internal.js': 'd29996249490361715c769c6a49b43ad47e6ac9a28a8e8bce8d02b238e897851',
-    'wasm/vision_wasm_module_internal.wasm': 'a269e84b12aefc93c9d6a4d62b01f41e5434a9fa941533bb8e75b1e3d1669e46',
-    'models/hand_landmarker.task': 'fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1',
-}
-
 root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(root / 'tools'))
+from vendor_hand_model import LICENSE_NAME, PINNED_ASSET_SHA256, REVIEWED_LICENSE_SHA256, SITE_FILES
+
+
+class PagePolicy(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.policies = []
+        self.in_head = False
+
+    def handle_starttag(self, tag, attributes):
+        if tag == 'head':
+            self.in_head = True
+        attrs = dict(attributes)
+        if tag == 'meta' and (attrs.get('http-equiv') or '').lower() == 'content-security-policy':
+            assert self.in_head and len(attrs) == len(attributes), 'Invalid Content Security Policy meta element'
+            self.policies.append(attrs.get('content') or '')
+
+    def handle_endtag(self, tag):
+        if tag == 'head':
+            self.in_head = False
+
+
+publish = '--publish' in sys.argv
 site = root / 'site'
-expected = {'index.html','core.js','foreground.js','hand_ml.js','app.js','styles.css'}
+expected = SITE_FILES
 assert site.is_dir() and not site.is_symlink(), 'Expected a regular site directory'
 site_entries = list(site.iterdir())
 assert not any(p.is_symlink() for p in site_entries), 'Unexpected symlink in site/'
@@ -30,7 +45,18 @@ html = (site/'index.html').read_text()
 for file in ('core.js','foreground.js','hand_ml.js','app.js'):
     assert f'src="{file}?v=0.7.0"' in html, f'Missing versioned {file}'
 assert 'href="styles.css?v=0.7.0"' in html
-assert "connect-src 'self'" in html and "script-src 'self' 'wasm-unsafe-eval'" in html
+policy = PagePolicy()
+policy.feed(html)
+assert len(policy.policies) == 1, 'Expected exactly one Content Security Policy'
+directives = [part.split() for part in policy.policies[0].split(';') if part.strip()]
+expected_directives = {
+    'default-src': ["'none'"], 'script-src': ["'self'", "'wasm-unsafe-eval'"],
+    'style-src': ["'self'"], 'img-src': ["'self'", 'data:'], 'connect-src': ["'self'"],
+    'object-src': ["'none'"], 'base-uri': ["'none'"], 'form-action': ["'none'"],
+}
+assert len(directives) == len(expected_directives) and dict(
+    (name, sources) for name, *sources in directives
+) == expected_directives, 'Content Security Policy differs from the reviewed directives'
 assert not any(x in html for x in ('Would you buy this?', 'data-intent'))
 assert 'This policy requires operator confirmation' in html
 assert 'https://cdn.' not in html and 'https://storage.googleapis.com' not in html
@@ -40,7 +66,7 @@ if vendor.exists():
     target = vendor/'mediapipe'
     assert target.is_dir() and not target.is_symlink(), 'Expected a regular MediaPipe directory'
     manifest = target/'SHA256SUMS.txt'
-    metadata = {'LICENSE-runtime.txt', 'PROVENANCE.txt'}
+    metadata = {LICENSE_NAME, 'PROVENANCE.txt'}
     required_assets = set(PINNED_ASSET_SHA256) | metadata
     required_files = required_assets | {manifest.name}
     required_dirs = {'models', 'wasm'}
@@ -64,15 +90,23 @@ if vendor.exists():
             assert asset_sha == PINNED_ASSET_SHA256[relative], f'Model/runtime asset does not match pinned SHA-256: {relative}'
         listed.add(relative)
     assert listed == required_assets, f'Missing manifest assets: {sorted(required_assets - listed)}'
+    if publish:
+        assert REVIEWED_LICENSE_SHA256 is not None, 'Publish blocked: exact MediaPipe redistribution notices are pending'
+        with entries[LICENSE_NAME].open('rb') as license_file:
+            assert hashlib.file_digest(license_file, 'sha256').hexdigest() == REVIEWED_LICENSE_SHA256, (
+                'Publish blocked: licence and attribution file does not match reviewed SHA-256'
+            )
     print('PASS: locally bundled and integrity-checked model/runtime assets')
-elif '--publish' in sys.argv:
+elif publish:
     raise AssertionError('Publish blocked: locally bundled reviewed ML assets are absent')
 else:
     print('INFO: ML runtime/model absent — hand option fails closed; publishing blocked without assets')
 result = subprocess.run(['git','ls-files','-z'], cwd=root, text=False, capture_output=True)
+if publish or (root / '.git').exists():
+    assert result.returncode == 0 and result.stdout, 'Could not inspect tracked files'
 if result.returncode == 0 and result.stdout:
     tracked = [p.decode('utf-8', 'replace') for p in result.stdout.split(b'\0') if p]
-    banned = {'.csv','.json','.jsonl','.ndjson','.sqlite','.sqlite3','.db','.zip','.log'}
+    banned = {'.csv','.json','.jsonl','.ndjson','.sqlite','.sqlite3','.db','.db-wal','.db-shm','.zip','.log'}
     failures = [p for p in tracked if Path(p).suffix.lower() in banned or
                 Path(p).name.startswith('.env') or
                 any(s in p.lower() for s in ('participant-export','respondent-data','research-ledger'))]

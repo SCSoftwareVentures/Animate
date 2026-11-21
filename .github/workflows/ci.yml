@@ -34,3 +34,20 @@ jobs:
         run: python tests/offline_browser.py && python tests/test_hand_browser.py
       - name: Run synthetic camera browser suite over localhost
         run: python tests/e2e.py
+      - name: Run real MediaPipe inference against pinned local test assets
+        run: |
+          assets_dir="$(mktemp -d "$RUNNER_TEMP/animate-assets.XXXXXX")"
+          trap 'rm -rf -- "$assets_dir"' EXIT
+          curl --fail --silent --show-error --location --proto '=https' --max-time 60 \
+            --output "$assets_dir/runtime.tgz" \
+            https://registry.npmjs.org/@mediapipe/tasks-vision/-/tasks-vision-1.2.3.tgz
+          curl --fail --silent --show-error --location --proto '=https' --max-time 60 \
+            --output "$assets_dir/hand_landmarker.task" \
+            'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task?generation=1682480004222387'
+          curl --fail --silent --show-error --location --proto '=https' --max-time 60 \
+            --output "$assets_dir/thumb_up.jpg" \
+            'https://storage.googleapis.com/mediapipe-assets/tasks/testdata/vision/thumb_up.jpg?generation=1782185354353621'
+          python tools/vendor_hand_model.py --stage-test --site-dir "$assets_dir/site" \
+            --runtime-archive "$assets_dir/runtime.tgz" --model-file "$assets_dir/hand_landmarker.task"
+          python tests/test_real_hand_browser.py --site "$assets_dir/site" \
+            --fixture "$assets_dir/thumb_up.jpg" --trials 1 --frames 6
