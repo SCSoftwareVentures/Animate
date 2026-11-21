@@ -44,7 +44,7 @@
       expectedBytes: approved.length, servedBytes: served.length,
       firstDifferenceByte: prefix, matchingTrailingBytes: suffix,
       expectedSha256: expectedHash, servedSha256: actualHash,
-      netlifyHudMarkerDetected: /\/\.netlify\/scripts\/hud|data-netlify-site-id|powered.by.netlify|netlify-hud/i.test(decoded),
+      netlifyHudMarkerDetected: /\/?\.netlify\/scripts\/hud|data-netlify-site-id|powered.by.netlify|netlify-hud/i.test(decoded),
       changedTextPreview: smallPreview
     });
   }
