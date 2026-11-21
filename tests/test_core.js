@@ -288,6 +288,86 @@ t('EVIDENCE: each customer segment has its own independent denominator', () => {
   assert.equal(summary.verified.cameraTesters, 2);
 });
 
+t('EVIDENCE: completed camera challenge feedback is counted once and private text stays out of summaries', () => {
+  const feedback = e('problem_response', iso(3), {
+    mode:'play', input:'camera', answer:'I currently use paper manipulatives.'
+  });
+  const r=base('participant-feedback-01', [start(),complete(),feedback,feedback], {role:'Educator'});
+  const normalized=C.sanitizeRecord(r);
+  const saved=normalized.events.find(x=>x.type==='problem_response');
+  assert.equal(saved.feedbackProvided,true);
+  assert.equal(saved.answer,undefined,'do not propagate participant free-text into reports');
+  const summary=C.summarize([r],[C.ledgerKey(r)]);
+  assert.equal(summary.provisional.feedbackRespondents,1);
+  assert.equal(summary.verified.feedbackRespondents,1);
+  assert.equal(summary.verified.feedbackAfterCameraCompletion,1);
+  assert.equal(summary.byRole.Educator.verified.feedbackRespondents,1);
+  assert(!JSON.stringify(summary).includes('paper manipulatives'));
+});
+t('EVIDENCE: malformed, empty and over-limit feedback cannot inflate response counts', () => {
+  const payloads=['   ', 'x'.repeat(241), {private:'somebody'}, null];
+  for (const [i,answer] of payloads.entries()) {
+    const r=base('participant-feedback-bad-'+i,[start(),complete(),
+      e('problem_response',iso(3),{mode:'play',input:'camera',answer})]);
+    const summary=C.summarize([r]);
+    assert.equal(summary.provisional.feedbackRespondents,0,'case '+i);
+    assert.equal(summary.provisional.feedbackAfterCameraCompletion,0,'case '+i);
+  }
+});
+t('EVIDENCE: touch feedback and feedback preceding camera completion are not camera completion evidence', () => {
+  const touch=base('participant-feedback-touch',[start('touch-run-001','play',1,'touch'),
+    e('problem_response',iso(3),{mode:'play',input:'touch',answer:'A real alternative'})]);
+  const before=base('participant-feedback-before',[start(),
+    e('problem_response',iso(1.5),{mode:'play',input:'camera',answer:'Prior answer'}),
+    complete()]);
+  for (const r of [touch,before]) {
+    const summary=C.summarize([r]);
+    assert.equal(summary.provisional.feedbackRespondents,1);
+    assert.equal(summary.provisional.feedbackAfterCameraCompletion,0);
+  }
+});
+
+t('PRIVACY: deletion clears all historical ANIMATE keys, preserves unrelated site data', () => {
+  const data = new Map([
+    ['animate-validation-v1', 'old'], ['animate-validation-v05', 'old'],
+    ['animate-validation-v07', 'latest'], ['animate-validation', 'old-root'],
+    ['another-app-token', 'leave alone'], ['animate-demo-setting', 'leave alone']
+  ]);
+  const storage = {
+    get length() { return data.size; },
+    key(i) { return [...data.keys()][i] ?? null; },
+    getItem(k) { return data.get(k) ?? null; },
+    removeItem(k) { data.delete(k); }
+  };
+  const outcome = C.deleteLocalResearchData(storage);
+  assert.deepEqual(outcome, {ok: true, removed: 4, failed: 0});
+  assert.deepEqual([...data.keys()], ['another-app-token', 'animate-demo-setting']);
+  assert.deepEqual(C.deleteLocalResearchData(storage), {ok: true, removed: 0, failed: 0});
+});
+t('PRIVACY: blocked storage reports failure instead of claiming deletion', () => {
+  const denied = { get length() { throw Error('SecurityError'); } };
+  const outcome = C.deleteLocalResearchData(denied);
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.removed, 0);
+  assert(outcome.failed >= 1);
+});
+t('PRIVACY: partial deletion continues and reports remaining record', () => {
+  const data = new Map([['animate-validation-v1', 'a'], ['animate-validation-v07', 'b'],
+    ['unrelated', 'keep']]);
+  const storage = {
+    get length() { return data.size; },
+    key(i) { return [...data.keys()][i] ?? null; },
+    getItem(k) { return data.get(k) ?? null; },
+    removeItem(k) { if (k === 'animate-validation-v1') throw Error('Denied');
+      data.delete(k); }
+  };
+  const result = C.deleteLocalResearchData(storage);
+  assert.deepEqual(result, {ok: false, removed: 1, failed: 1});
+  assert(data.has('animate-validation-v1'));
+  assert(!data.has('animate-validation-v07'));
+  assert(data.has('unrelated'));
+});
+
 t('v0.7 authenticates hand event provenance within an export, not against an external issuer', () => {
   const model='mediapipe-hand-landmarker-float16-v1';
   const startHand={...start(),detector:'hand',model};

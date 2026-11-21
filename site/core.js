@@ -258,6 +258,12 @@ function sanitizeRecord(r) {
         Math.abs(dayDiff(e.time.slice(0, 10), e.day)) <= 1) safe.day = e.day;
     if (Number.isInteger(e.days) && e.days >= 0 && e.days <= 365) safe.days = e.days;
     if (Number.isFinite(e.elapsed) && e.elapsed >= 0 && e.elapsed <= 1200000) safe.elapsed = e.elapsed;
+    // Keep only a non-identifying measurement flag in researcher summaries.
+    // Raw participant exports may contain free-text feedback; never echo that text into summaries.
+    if (e.type === 'problem_response' && typeof e.answer === 'string' &&
+        e.answer.trim().length > 0 && e.answer.trim().length <= 240) {
+      safe.feedbackProvided = true;
+    }
     if (e.type === 'benchmark_sample' && e.sample && typeof e.sample === 'object') {
       const s = e.sample;
       if (['colour','foreground'].includes(s.detector) &&
@@ -286,7 +292,9 @@ function sanitizeRecord(r) {
 function recordMetrics(r) {
   const starts = new Map();
   const completedRuns = new Set();
+  const completedCameraModeAt = new Map();
   let cameraStarts = false, validCameraCompletions = 0, touched = false;
+  let feedbackRecorded = false, feedbackAfterCameraCompletion = false;
   const detectors = new Set(), completedDetectors = new Set();
   let firstValidStart = null;
   for (const e of r.events) {
@@ -308,6 +316,14 @@ function recordMetrics(r) {
       if (seconds < 400 || seconds > 1200000 || Math.abs(seconds - e.elapsed) > 10000) continue;
       completedRuns.add(e.runId);
       validCameraCompletions++; completedDetectors.add(e.detector);
+      completedCameraModeAt.set(e.mode, Math.min(completedCameraModeAt.get(e.mode) ?? Infinity, Date.parse(e.time)));
+    }
+    if (e.type === 'problem_response' && e.feedbackProvided) {
+      feedbackRecorded = true;
+      if (e.input === 'camera' && e.mode && completedCameraModeAt.has(e.mode) &&
+          Date.parse(e.time) >= completedCameraModeAt.get(e.mode)) {
+        feedbackAfterCameraCompletion = true;
+      }
     }
   }
   const observable = cameraStarts && r.exportedAt != null &&
@@ -316,7 +332,8 @@ function recordMetrics(r) {
     e.day && dayDiff(r.createdDay, e.day) === e.days &&
     Date.parse(e.time) <= Date.parse(r.exportedAt));
   return { cameraStarts, cameraCompleted: validCameraCompletions > 0, validCameraCompletions,
-    observable, returned, touched, detectors: [...detectors], completedDetectors: [...completedDetectors] };
+    observable, returned, touched, feedbackRecorded, feedbackAfterCameraCompletion,
+    detectors: [...detectors], completedDetectors: [...completedDetectors] };
 }
 
 function ledgerKey(r) { return r.id + '|' + r.createdDay + '|' + r.device; }
@@ -339,7 +356,9 @@ function summarize(records, ledger = []) {
     first: arr.filter(x => x.metrics.cameraCompleted).length,
     returnEligible: arr.filter(x => x.metrics.observable).length,
     returnUnobservable: arr.filter(x => x.metrics.cameraStarts && !x.metrics.observable).length,
-    returned: arr.filter(x => x.metrics.returned).length
+    returned: arr.filter(x => x.metrics.returned).length,
+    feedbackRespondents: arr.filter(x => x.metrics.feedbackRecorded).length,
+    feedbackAfterCameraCompletion: arr.filter(x => x.metrics.feedbackAfterCameraCompletion).length
   });
   return {
     build: BUILD, importedRecords: records.length, acceptedRecords: all.length, rejectedRecords: rejected,
@@ -361,16 +380,49 @@ function summarize(records, ledger = []) {
       }];
     })),
     roleWarning: 'Intended-use categories are self-reported; cohorts are not independent evidence of demand.',
+    feedbackWarning: 'Only the number of nonempty, bounded responses is reported. Raw participant exports can contain identifiable free text; review privately and do not publish.',
     distinctSecondExperience: 'Not measured: modes share zone-control mechanics',
     pricing: 'Not measured: no pricing or hypothetical purchase prompt',
     evidenceWarning: 'All files are editable self-reports. Ledger matching is procedural, not cryptographic proof.'
   };
 }
 
+/**
+ * Remove only the ANIMATE research-data namespace across historical build versions.
+ * Snapshot keys before deletion, since deleting while iterating shifts localStorage indices.
+ * Report blocked/partial deletion instead of suggesting that a reset definitely succeeded.
+ * Does not affect records previously downloaded, sent, or backed up outside this origin.
+ */
+function deleteLocalResearchData(storage) {
+  let removed = 0, failed = 0;
+  try {
+    const keys = [];
+    for (let index = 0; index < storage.length; index++) {
+      const key = storage.key(index);
+      if (typeof key === 'string' &&
+          (key === 'animate-validation' || key.startsWith('animate-validation-'))) {
+        keys.push(key);
+      }
+    }
+    for (const key of keys) {
+      try {
+        storage.removeItem(key);
+        if (storage.getItem(key) === null) removed++;
+        else failed++;
+      } catch (_) {
+        failed++;
+      }
+    }
+    return { ok: failed === 0, removed, failed };
+  } catch (_) {
+    return { ok: false, removed, failed: failed + 1 };
+  }
+}
+
 const core = { BUILD, SCHEMA_VERSION, MAX_EVENTS, clamp, rgb2hsv, hueDist, sampleReference,
   skinLike, locate, createZoneTracker, localDay, dayDiff, modes, roles, sanitizeRecord, ledgerKey,
   recordMetrics, summarize, PROBE_FRAMES, probeColours, probeLights, probeBackgrounds,
-  probeExpected, createRecognitionProbe, calibrationCandidate };
+  probeExpected, createRecognitionProbe, calibrationCandidate, deleteLocalResearchData };
 if (typeof module !== 'undefined' && module.exports) module.exports = core;
 else root.AnimateCore = core;
 })(typeof globalThis === 'undefined' ? this : globalThis);
