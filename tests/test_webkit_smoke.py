@@ -4,6 +4,7 @@
 A real WebKit renderer checks the site over loopback with the production CSP.
 This is NOT iOS Safari, camera hardware, trained-model inference or a real-user test.
 """
+import argparse
 import functools
 import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -27,9 +28,15 @@ def check(label, predicate):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--site-dir", type=Path, default=SITE)
+    parser.add_argument("--baseline", action="store_true", help="Require ML-free operator baseline UI")
+    args = parser.parse_args()
+    if args.baseline and args.site_dir.resolve() == SITE.resolve():
+        parser.error("--baseline requires a separately transformed --site-dir")
     server = ThreadingHTTPServer(
         ("127.0.0.1", 0),
-        functools.partial(SilentHandler, directory=str(SITE)),
+        functools.partial(SilentHandler, directory=str(args.site_dir)),
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -65,6 +72,13 @@ def main():
                         return policy && policy.content.includes("connect-src 'self'") &&
                           policy.content.includes("default-src 'none'");
                       }"""))
+                if args.baseline:
+                    check("ML-free baseline hides hand tracking selection",
+                          page.locator('#detector option[value="hand"]').count() == 0 and
+                          page.locator('#detector option').count() == 2)
+                    check("ML-free baseline discloses unavailability in accessible UI",
+                          page.locator('#baselineDisclosure').is_visible() and
+                          "Hand ML is unavailable" in page.locator('#baselineDisclosure').inner_text())
                 check("WebKit intro starts with explicit consent",
                       page.locator("#intro").is_visible() and page.locator("#lab").is_hidden())
                 page.click("#enter")
@@ -163,7 +177,7 @@ def main():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
-    print("PASS 14/14 WebKit-on-Linux preflight checks", flush=True)
+    print("PASS %s WebKit-on-Linux preflight checks" % ("16/16 baseline" if args.baseline else "14/14"), flush=True)
 
 
 if __name__ == "__main__":
