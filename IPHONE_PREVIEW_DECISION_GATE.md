@@ -33,6 +33,12 @@ A future authorised preview must use the exact inspected candidate, genuine HTTP
 
 The public GitHub Pages workflow remains manual and also requires an explicit confirmation, an owner-controlled repository approval variable, a three-way exact commit SHA match, and the unchanged `tests/check_release.py --publish` gate. Merely generating a baseline candidate does **not** meet the ML publish checker, does not set approval variables, and does not authorise publication.
 
+### Local HTTPS bench delivery hardening (development only)
+
+The alternate computer/LAN server `tools/serve_safari_https.py` is now restricted to the **six-file model-free baseline** emitted by `tools/build_baseline_preview.py`. It checks the baseline candidate's exact Git commit, external manifest, approved filenames and SHA-256 hashes, and refuses all model/WASM distribution. Direct requests for unlisted paths are not served. The HTTP response adds **`frame-ancestors 'none'`**, `X-Frame-Options: DENY`, `Permissions-Policy` with camera restricted to the origin, `Cross-Origin-Resource-Policy: same-origin`, no-store caching and no referrer leakage. An offline CI loopback test checks those headers, forged Host requests, unsigned staging and tampering. This is not a remotely accessible preview and does not implement hosted authentication.
+
+**Important:** The bench server requires a separate machine and an operator-controlled TLS certificate; it cannot run from this iPhone-only ChatGPT environment. Do not use the old LAN procedure as an assumed deployment route. A true iPhone-only, revocable HTTPS preview still requires a separate owner-approved provider and privacy/access review. Physical Safari measurements remain absent.
+
 ### Gate B: Hand-ML preview
 
 **Not yet authorised or prepared for distribution.** Requires resolved exact runtime/model notices, approved vendor bundle, integrity checks, operator permission for external hosting and the full release security review. Only then test actual fingertip tracking on physical iPhone Safari using [the bench protocol](SAFARI_DEVICE_TEST.md), recording false completions, latency, inferred FPS, reload/start failures, camera revocation, battery and thermal observations.
