@@ -64,5 +64,6 @@ An operator-only zone probe now counts absent/expected/wrong-zone results under 
 - Hand-ML loading has a bounded 12-second deadline; an engine delivered after cancellation/timeout is closed.
 - Repeated model startup closes the previous WASM engine rather than leaking it.
 - Muted, interrupted, or stale camera frames invalidate **all** calibrations and disable challenge scoring until explicit re-calibration or restart.
+- Short null/ambiguous detection frames preserve only bounded earlier progress, never add unobserved time toward confirmed zone dwell; sustained alternating dropouts fail closed.
 - Tests cover loader-timeout and delayed-completion races.
 - Source import and GitHub Actions verification are tracked in draft PR #1.

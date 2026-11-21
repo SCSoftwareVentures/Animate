@@ -24,7 +24,7 @@ This is a **diagnostic proxy, not independently verified ground truth**. The ope
 - `expectedCondition`: the **operator's** claim (absent, left, middle, right), not independently captured ground truth
 - `detectedFrames`, `undetectedFrames`, `ambiguousFrames`: detector outputs during fresh frames; a detected point is not proof of correct identity
 - `correctZoneFrames` / `wrongZoneFrames`: point-zone agreement or disagreement relative to the manually declared zone
-- `expectedDwellEvents` / `unexpectedDwellEvents`: dwell-trigger *proxies* that an active challenge could potentially use; these are **not actual successful or failed challenge completions**
+- `expectedDwellEvents` / `unexpectedDwellEvents`: dwell-trigger *proxies* that an active challenge could potentially use; these are **not actual successful or failed challenge completions**. A missing or ambiguous frame provides no additional dwell credit; sustained detection must be reconfirmed to trigger
 - `coverage`: observed time buckets, sampling gaps, rejected time ordering and data adequacy; incomplete data is never automatically considered a success
 - `independentlyVerified: false` and `userDemandMeasured: false`: explicit limits on the evidence
 
