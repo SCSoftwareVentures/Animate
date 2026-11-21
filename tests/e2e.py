@@ -124,7 +124,8 @@ with tempfile.TemporaryDirectory() as vids:
                   'exportedAt' in exported and exported['build'] == '0.7.0' and exported['id'])
             pg.locator('summary:has-text("Researcher")').click()
             pg.locator('#aggregate').set_input_files(path)
-            pg.wait_for_function("() => document.querySelector('#aggregateOutput').textContent.trim().startsWith('{')")
+            # Locator assertions poll without JavaScript eval; our CSP deliberately forbids unsafe-eval.
+            expect(pg.locator('#aggregateOutput')).to_contain_text('"provisional"')
             summary = json.loads(pg.locator('#aggregateOutput').inner_text())
             check('touch-only run is not a camera success',
                   summary['provisional']['cameraTesters'] == 0 and summary['verified']['first'] == 0)
