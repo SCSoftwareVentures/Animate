@@ -207,9 +207,22 @@ function calibrationCandidate(data, w, h, ref, x, y, maxDistance = .14) {
   return candidate;
 }
 
-const dateOK = s => typeof s === 'string' && s.length <= 40 && Number.isFinite(Date.parse(s));
-const dayOK = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) &&
-  !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
+// Accept only real Gregorian calendar days and canonical UTC ISO timestamps produced by the app.
+// Date.parse() alone normalises dates such as February 30 instead of rejecting them.
+const dayOK = s => {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const year = Number(s.slice(0, 4)), month = Number(s.slice(5, 7)), day = Number(s.slice(8, 10));
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(0, 0, 0, 0);
+  return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day;
+};
+const dateOK = s => {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(s) ||
+      !dayOK(s.slice(0, 10))) return false;
+  const time = Date.parse(s);
+  return Number.isFinite(time) && new Date(time).toISOString() === s;
+};
 
 // Client-generated events are NOT authenticated. These checks improve metric consistency,
 // not fraud resistance. Decision-grade counts also require an independent recruitment ledger.
@@ -220,6 +233,8 @@ function sanitizeRecord(r) {
       r.events.length > MAX_EVENTS || (r.exportedAt != null && !dateOK(r.exportedAt)) ||
       !['iPhone', 'Android', 'Other'].includes(r.device)) return null;
   const created = Date.parse(r.created);
+  // Local-day labels can differ by at most one calendar date from their UTC timestamp.
+  if (Math.abs(dayDiff(r.created.slice(0, 10), r.createdDay)) > 1) return null;
   const exported = dateOK(r.exportedAt) ? Date.parse(r.exportedAt) : null;
   if (exported !== null && exported < created) return null;
   const events = [];
@@ -235,7 +250,9 @@ function sanitizeRecord(r) {
     if (typeof e.mode === 'string' && modes.includes(e.mode)) safe.mode = e.mode;
     if (e.model === 'mediapipe-hand-landmarker-float16-v1' && e.detector === 'hand') safe.model = e.model;
     if (typeof e.runId === 'string' && /^[a-zA-Z0-9-]{8,80}$/.test(e.runId)) safe.runId = e.runId;
-    if (typeof e.day === 'string' && dayOK(e.day)) safe.day = e.day;
+    // A claimed local return-day must be plausible for that event's UTC timestamp.
+    if (typeof e.day === 'string' && dayOK(e.day) &&
+        Math.abs(dayDiff(e.time.slice(0, 10), e.day)) <= 1) safe.day = e.day;
     if (Number.isInteger(e.days) && e.days >= 0 && e.days <= 365) safe.days = e.days;
     if (Number.isFinite(e.elapsed) && e.elapsed >= 0 && e.elapsed <= 1200000) safe.elapsed = e.elapsed;
     if (e.type === 'benchmark_sample' && e.sample && typeof e.sample === 'object') {
