@@ -43,6 +43,8 @@ jobs:
         run: python tests/test_host_canary.py
       - name: Test screenshot isolation canary neutral homepage and private fake-marker route
         run: python tests/test_screenshot_isolation_canary.py
+      - name: Test exact model-free operator preview ZIP, privacy and neutral-root gate
+        run: python tests/test_operator_preview.py
       - name: Adversarially audit self-reported iPhone evidence without personal data or uploads
         run: python tests/test_iphone_evidence.py
       - name: Cross-check real JavaScript evidence packets against Python audit contracts
@@ -69,6 +71,14 @@ jobs:
           mkdir "$preview_dir/unpacked"
           python -m zipfile -e "$preview_dir/preview/animate-model-free-private-preview.zip" "$preview_dir/unpacked"
           python tests/test_webkit_smoke.py --site-dir "$preview_dir/unpacked" --baseline
+      - name: Prepare source-verified operator ZIP and smoke-test nested URL in Linux WebKit
+        run: |
+          mkdir -p "$RUNNER_TEMP/animate-operator"
+          python tools/build_operator_preview.py --output-dir "$RUNNER_TEMP/animate-operator/package"
+          mkdir -p "$RUNNER_TEMP/animate-operator/unpacked"
+          python -m zipfile -e "$RUNNER_TEMP/animate-operator/package/animate-operator-only-preview.zip" "$RUNNER_TEMP/animate-operator/unpacked"
+          python tests/test_operator_preview_webkit.py --site-dir "$RUNNER_TEMP/animate-operator/unpacked"
+          python tests/test_webkit_smoke.py --site-dir "$RUNNER_TEMP/animate-operator/unpacked/operator-preview" --baseline
       - name: Run offline browser regression suite
         run: python tests/offline_browser.py && python tests/test_hand_browser.py
       - name: Run synthetic camera browser suite over localhost
@@ -96,3 +106,13 @@ jobs:
             --fixture "$assets_dir/thumb_up.jpg" --trials 1 --frames 6 --browser chromium
           python tests/test_real_hand_browser.py --site "$assets_dir/site" \
             --fixture "$assets_dir/thumb_up.jpg" --trials 1 --frames 6 --browser webkit
+      # Public repository artifact: ONLY already-public, model-free UI assets.
+      # It is an owner download candidate, never a hosting deployment or a secret.
+      - name: Provide owner-downloadable operator preview ZIP (no deployment)
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: animate-operator-preview-${{ github.sha }}
+          path: ${{ runner.temp }}/animate-operator/package/animate-operator-only-preview.zip
+          if-no-files-found: error
+          retention-days: 3
