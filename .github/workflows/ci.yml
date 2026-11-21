@@ -29,6 +29,8 @@ jobs:
         run: python tests/test_runtime_rights.py
       - name: Test model-free preview and public-release fail-closed gates
         run: python tests/test_preview_release_guards.py
+      - name: Audit HTTPS bench manifest, Host enforcement and security headers
+        run: python tests/test_bench_https_security.py
       - name: Synthetic recognition diagnostic (informational; not a real-device pass gate)
         run: node tests/recognition_matrix.js --summary
       - name: Install browser test dependencies
