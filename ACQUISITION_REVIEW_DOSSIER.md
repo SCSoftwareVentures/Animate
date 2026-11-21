@@ -6,7 +6,7 @@
 
 ANIMATE development has been conducted across a chain of dependent draft pull requests, beginning with the Codex source import and continuing through privacy, model-inference, hosting and physical-device measurement safeguards. A reviewer should not have to infer the combined implementation by following many individual diffs. This branch contains the cumulative source, documentation and tests as **one proposed review diff against `main`**.
 
-Earlier PRs remain draft and independent. This consolidation does not silently merge them, approve licences, provide an external web preview or change repository visibility. The consolidated branch must pass its own full GitHub CI after the final documentation change.
+Earlier PRs remain draft and independent. This consolidation does not silently merge them, approve licences, provide an external web preview or change repository visibility. The consolidated branch must pass its own full GitHub CI after the final documentation change. For a possible **strictly $0 owner-only physical iPhone test**, see [the private Free-plan ZIP option](ZERO_COST_IPHONE_PREVIEW.md); this is a proposed future external workflow, not a launched site.
 
 ## What is in scope
 
