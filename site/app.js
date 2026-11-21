@@ -1099,7 +1099,12 @@ $('dbgcopy').addEventListener('click', async () => {
 });
 window.addEventListener('error', e => { lastError = String(e.message); updateDiagnostics(); });
 window.addEventListener('unhandledrejection', e => { lastError = String(e.reason); updateDiagnostics(); });
-window.addEventListener('pagehide', stopForBackground);
+// Touch-only challenges do not own camera resources: preserve their in-page
+// state across Safari pagehide / bfcache transitions. Pending and live camera
+// sessions still fail closed, including unresolved permission prompts.
+window.addEventListener('pagehide', () => {
+  if (stream || startInProgress) stopForBackground();
+});
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && (stream || startInProgress)) {
     // getUserMedia can still be awaiting a permission prompt, before 'stream'
