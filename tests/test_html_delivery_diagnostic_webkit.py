@@ -19,7 +19,7 @@ class MutatingFixture(SimpleHTTPRequestHandler):
         p = urlsplit(self.path).path
         if self.server.inject_html and p in ("/", "/index.html", "/operator-preview/index.html"):
             actual_path = "index.html" if p in ("/", "/index.html") else p.lstrip("/")
-            data = (Path(self.directory) / actual_path).read_bytes() + b"\n<!-- NETLIFY-EDGE-TEST-ONLY -->\n"
+            data = (Path(self.directory) / actual_path).read_bytes() + b"\n<!-- NETLIFY-EDGE-TEST-ONLY /.netlify/scripts/hud -->\n"
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(data)))
