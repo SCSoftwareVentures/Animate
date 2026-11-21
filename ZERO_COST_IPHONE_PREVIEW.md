@@ -1,0 +1,64 @@
+# ANIMATE — $0 additional-cost iPhone preview option (owner-only)
+
+**Status: offline preview ZIP builder in draft review; nothing deployed.** The source checkout, CI runner and ChatGPT session have not opened a Netlify account or site. Do not confuse a technically packaged preview with an authorised, secure hosted experiment.
+
+## Current verified provider conditions (21 November 2026)
+
+An operator may choose **Netlify's credit-based Free plan** if the account explicitly shows the plan, fixed usage caps and **zero permitted extra charges**. Netlify documents hard limits on Free; when a usage limit is reached, hosted projects can **pause**, rather than automatically charge for more usage. Netlify's credit-based Free plan also permits **Private** project visibility, limited to the **Team Owner**. On new accounts, private-by-default depends on account settings and account creation date; **check each project's actual visibility before uploading**.
+
+Primary provider documentation:
+- https://www.netlify.com/pricing/
+- https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/
+- https://docs.netlify.com/manage/accounts-and-billing/billing/resume-paused-projects/
+- https://docs.netlify.com/manage/security/secure-access-to-sites/project-visibility/
+- https://docs.netlify.com/manage/routing/headers/
+
+**Stop if any of the following is required or selected:** paid plan, payment-card requirement the owner does not accept, trial that converts to paid, add-ons, auto recharge, credit purchase, paid team seats, paid domain, upgrade prompt, or a **Public** project. Do not trust a secret URL, HTML/JS password prompt, or robots.txt as access control. A Free plan is not automatically cost-free on legacy plans or if the operator separately opts into a paid product.
+
+## Prepared deliverable (offline; no web requests)
+
+From an approved checkout, this script builds an immutable local ZIP **outside the Git repository**:
+
+```sh
+mkdir -p /tmp/animate-preview-build
+python tools/build_zero_cost_preview.py --output-dir /tmp/animate-preview-build/candidate
+```
+
+It creates exactly:
+
+- `animate-model-free-private-preview.zip`: a *seven-file* static bundle with `index.html`, `app.js`, `core.js`, `foreground.js`, `hand_ml.js`, `styles.css`, and Netlify's `_headers` file
+- `LOCAL_ONLY_BUILD_RECEIPT.json`: SHA-256 hashes, exact source commit and explicit statements that no host, costs, device tests or access-control approval exist. **Never upload this receipt as part of the served website**.
+
+The model-free user interface removes the hand-ML selection and prominently discloses the limitation. There is **no MediaPipe runtime, model, WASM file, participant export, ledger, environment file, credential, tracking beacon or external image** in the ZIP. The `_headers` file declares CSP, same-origin camera permissions, frame blocking, no-referrer, no-store and HSTS; the hosted provider must still be verified to apply them in responses.
+
+The builder is deliberately **not** a Netlify client: it makes no web requests and cannot deploy, log into an account, buy credits, create a project or set project visibility. Its generated ZIP is **not protected by itself**—security depends on provider-enforced Private access after explicit operator setup. A public upload would be an unacceptable privacy/security exposure.
+
+## iPhone-only deployment decision — operator action only
+
+1. Review Netlify's **current** Free billing terms and account limits on the iPhone. Confirm the account is on **credit-based Free** (not a paid or legacy account with unknown billing behaviour), with hard monthly limits and no possible automatic recharge. Cancel the process if a payment card, upgrade or cost is requested. The assistant must not create accounts or connect Netlify to GitHub without explicit approval.
+2. If you separately authorise a Netlify account, sign in from iPhone Safari and independently configure a project with **Project visibility = Private** under the provider's access controls. On Free this restricts access to the team owner; external testers cannot use it without a separately reviewed access arrangement. **Verify privacy before importing or uploading any site ZIP**.
+3. Only after that privacy verification, use a *manual site deployment* (if the iPhone Netlify interface actually supports file selection) with the **ZIP only**, or an independently approved deployment integration. Do not turn on production auto-deploy from GitHub just to get a preview. No provider actions are carried out by this repository.
+4. After deploying, test the HTTPS URL in a private/incognito browser session while **signed out**; it must not deliver HTML/CSS/JS to an unauthorised visitor. Log in as team owner only through the provider's official login. If this cannot be verified, stop; do not request camera permission or enter data.
+5. Inspect whether every reviewed file is served unchanged and every protective HTTP header is enforced. The existing `tools/audit_hosted_preview.py` is a future operator-gated auditor, not proof of Netlify support: login redirects are deliberately marked *unverified*. Provider injections, headers, auth cookies, SSO and traffic logs need separate live review.
+6. When all gates are explicitly satisfied, open the authorised URL **directly in iPhone Safari**, test touch-only controls, then the model-free colour/foreground camera. Use [the physical device protocol](IPHONE_DEVICE_METRICS_PROTOCOL.md); do not interpret synthetic/browser-engine results as physical-device results.
+7. Shut down and delete the deployment/project at the end of the trial, as permitted, and check the provider's retained usage/request logs. An uploaded/downloaded static file cannot be remotely deleted from devices that already received it.
+
+## Acceptance conditions before we call this a working iPhone preview
+
+| Gate | Current status |
+| --- | --- |
+| Offline ZIP constructed and checksummed | Implemented in draft; full GitHub CI required on exact head |
+| Free-plan hard monthly stop | Documented provider capability, **not independently checked for owner's account** |
+| Private project and valid authenticated access | **Not configured or verified** |
+| HTTPS/browser security headers in real response | Required but **not tested against Netlify** |
+| Camera permission, capture and performance in physical iPhone Safari | **Not measured** |
+| Model redistribution legal clearance | **Blocked**; not relevant to model-free preview |
+| Customer willingness to pay and acquisition interest | **Not measured** |
+
+## Explicit financial and permission controls
+
+**Total additional spending allowed: $0 AUD.** No use of Codespaces, Railway, Render, paid domains, subscriptions, billing top-ups, purchased credits or paid developer accounts. Do not permit any cloud plan to auto-upgrade or bill overages. If the legitimate Netlify Free access restriction or iPhone login flow does not work, report this obstacle rather than weaken authentication or publish the model-free app publicly.
+
+This option supersedes the earlier **potentially billable Codespaces** proposal as the preferred route, without cancelling or merging historical PRs. Netlify/its CDN can still observe request metadata even if browser video frames remain local. Separate operator privacy approval is mandatory before using a real camera or recruiting anyone.
+
+This is an engineering candidate—not a promise that Netlify Free currently enables all required mobile features, not a signed service agreement, not a published app and not evidence of demand.
