@@ -69,6 +69,7 @@ let importedLedger = [];
 let unreadableFiles = 0;
 const tracker = C.createZoneTracker();
 const probe = C.createRecognitionProbe();
+const deviceBench = C.createDeviceBench();
 let probeSamples = [];
 
 function setStatus(message) {
@@ -224,6 +225,10 @@ async function preventSleep() {
   catch (_) { /* Optional only. Tested iPhone behaviour unknown. */ }
 }
 function stopCamera() {
+  if (deviceBench.active()) {
+    deviceBench.finish(performance.now(), 'camera_stopped');
+    refreshDeviceBench();
+  }
   cancelProbe('Camera stopped: unfinished sample discarded.');
   frameWatcherGeneration++;
   cancelAnimationFrame(rafId); rafId = 0;
@@ -251,6 +256,8 @@ function stopCamera() {
   updateTarget();
 }
 function cameraFailure(message, error) {
+  deviceBench.noteInterruption(performance.now());
+  refreshDeviceBench();
   stopCamera();
   lastError = (error || '') + ' ' + message;
   log('camera_error', { reason: message, name: error || null });
@@ -269,6 +276,8 @@ function beginFrameWatch(video) {
   video.requestVideoFrameCallback(callback);
 }
 function markInterrupted(message) {
+  deviceBench.noteInterruption(performance.now());
+  refreshDeviceBench();
   cancelProbe('Camera interrupted: unfinished sample discarded.');
   interrupted = true;
   stale = true;
@@ -326,7 +335,6 @@ function onCameraLoop() {
   } else if (!calibrating && (reference || (detectorKind === 'foreground' && foreground.ready) ||
       (detectorKind === 'hand' && hand.ready)) && video.readyState >= 2 && frameNumber > 0 && frameNumber !== processedFrame) {
     processedFrame = frameNumber;
-    analysedFpsCounter++;
     grabFrame();
     const started = performance.now();
     const frame = detectorKind !== 'hand' ? ac.getImageData(0, 0, 160, 120).data : null;
@@ -337,8 +345,10 @@ function onCameraLoop() {
         C.locate(frame, 160, 120, reference);
     } catch (err) { cameraFailure('Local hand model inference failed. Restart the camera.', err?.name); return; }
     if (p?.skipped) { draw(lastPosition); rafId = requestAnimationFrame(onCameraLoop); return; }
+    analysedFpsCounter++;
     if (detectorKind === 'hand' && $('start').disabled) $('start').disabled = false;
     const elapsed = performance.now() - started;
+    deviceBench.noteLatency(elapsed);
     detectionMs += elapsed;
     detectionCount++;
     if (probe.active) {
@@ -589,8 +599,23 @@ function showAggregate() {
     privacy: 'Ledger loaded only in memory. Never commit participant exports or ledger to a public repository.'
   }, null, 2);
 }
+function refreshDeviceBench() {
+  if (!DEBUG) return;
+  const summary = deviceBench.snapshot(performance.now());
+  $('deviceBenchStatus').textContent = summary.status === 'not_started' ?
+    'Not measured. Start a camera first, then begin a 60-second sample.' :
+    summary.status === 'running' ? 'Recording numeric measurements locally. No frames or personal identifiers are saved.' :
+    summary.complete ? '60-second measurement complete. Review before copying.' :
+    'Incomplete measurement (' + summary.status + '). Do not report this as a pass.';
+  $('deviceBenchStart').disabled = deviceBench.active();
+  $('deviceBenchFinish').disabled = !deviceBench.active();
+  $('deviceBenchReport').textContent = JSON.stringify(summary, null, 2);
+}
+
 function updateDiagnostics(fps = 0, renderFps = 0) {
   if (!DEBUG) return;
+  deviceBench.noteWindow(performance.now(), fps, renderFps);
+  refreshDeviceBench();
   const track = stream?.getVideoTracks()?.[0];
   const settings = track?.getSettings?.() || {};
   $('dbgbox').hidden = false;
@@ -697,6 +722,7 @@ $('export').addEventListener('click', exportRecord);
 $('reset').addEventListener('click', () => {
   if (!confirm('Delete your local ANIMATE records on this device? Previously exported copies are not deleted.')) return;
   stopCamera();
+  deviceBench.reset(); refreshDeviceBench();
   let deletion = { ok: false, removed: 0, failed: 1 };
   try { deletion = C.deleteLocalResearchData(localStorage); } catch (_) { /* Local storage can be blocked. */ }
   record = null;
@@ -734,6 +760,37 @@ $('ledger').addEventListener('change', async event => {
   catch (e) { $('aggregateOutput').textContent = 'Ledger rejected: ' + e.message; return; }
   showAggregate();
 });
+if (DEBUG) {
+  $('dbgbox').hidden = false;
+  refreshDeviceBench();
+  $('deviceBenchStart').addEventListener('click', () => {
+    if (!stream || input !== 'camera' || interrupted || stale ||
+        !lastFrameAt || frameNumber === 0 || performance.now() - lastFrameAt > 1500) {
+      $('deviceBenchStatus').textContent =
+        'Measurement blocked: enable a live camera and analyse fresh frames first.';
+      return;
+    }
+    deviceBench.begin(performance.now(), detectorKind);
+    refreshDeviceBench();
+  });
+  $('deviceBenchFinish').addEventListener('click', () => {
+    deviceBench.finish(performance.now(), 'manual');
+    refreshDeviceBench();
+  });
+  $('deviceBenchCopy').addEventListener('click', async () => {
+    if (deviceBench.snapshot(performance.now()).status === 'not_started') {
+      $('deviceBenchStatus').textContent = 'No camera measurement exists to copy.';
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(deviceBench.snapshot(performance.now()), null, 2));
+      $('deviceBenchCopy').textContent = 'Summary copied';
+    } catch (_) {
+      $('deviceBenchStatus').textContent = 'Clipboard unavailable. Select and copy the numeric report manually.';
+    }
+  });
+}
+
 $('dbgcopy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText($('diagnosticOutput').textContent); $('dbgcopy').textContent = 'Copied'; }
   catch (_) { $('dbgcopy').textContent = 'Copy unavailable: select text manually'; }
