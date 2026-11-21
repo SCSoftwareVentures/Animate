@@ -48,6 +48,10 @@ python tests/e2e.py /usr/bin/chromium
 5. On an operator-owned iPhone over private HTTPS, run the [Safari device checks](SAFARI_DEVICE_TEST.md) for startup, camera permissions, outages, accuracy, accessibility, and thermal behavior.
 6. Record new integration/device/licence evidence on the consolidated review PR, retaining historical draft PRs for traceability. **Do not merge, deploy, recruit participants, redistribute model assets or charge customers** without owner approval and successful gates.
 
+## Offline iPhone evidence audit (unverified operator reports)
+
+The optional offline validator `tools/audit_iphone_evidence.py` rejects incomplete, contradictory or personally identifying data fields in future self-reported camera-trial packets. It counts all attempts and never certifies device authenticity or recognition accuracy. [Protocol and explicit limits](IPHONE_EVIDENCE_AUDIT_PROTOCOL.md).
+
 ## Integrated draft controls and $0 packaging
 
 An operator-only zone probe now counts absent/expected/wrong-zone results under self-labelled conditions, with per-second frame coverage required; this is **not independently verified accuracy**. The $0 preview ZIP remains offline and has **no built-in authentication**. A hosting dashboard setting marked Private cannot certify private site asset delivery. No distribution is authorised.
