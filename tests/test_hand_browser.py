@@ -59,9 +59,16 @@ def prepare(p, camera=False, benchmark=False, hand_mock=False, hand_hang=False):
     page.add_script_tag(content=(SITE/'hand_ml.js').read_text())
     if hand_mock:
         page.evaluate("""() => {
+          const video = document.querySelector('#video');
+          video.requestVideoFrameCallback = callback => {
+            window.releaseFrameWatch = () => {
+              delete video.requestVideoFrameCallback;
+              video.requestVideoFrameCallback(callback);
+            };
+          };
           // Fake MediaPipe inference results only. Not a test of the actual model.
           const original = AnimateHandML.createHandDetector;
-          AnimateHandML.createHandDetector = () => original({ minIntervalMs:95, loader:async()=>({
+          AnimateHandML.createHandDetector = (options) => original({ ...options, loader:async()=>({
             detectForVideo:()=>{
               const landmarks = Array.from({length:21},()=>({x:.5,y:.5}));
               landmarks[8]={x:window.blobX,y:.5};
@@ -99,12 +106,28 @@ with sync_playwright() as p:
     pg.select_option('#detector','hand')
     pg.click('#camera')
     pg.wait_for_function("document.querySelector('#inputLabel').textContent === 'Live camera'")
+    waiting_state = pg.evaluate("""() => {
+      const state = { handReady: hand.ready, startDisabled: document.querySelector('#start').disabled,
+        noFrame: frameNumber === 0, noInference: hand.metrics().inferenceCount === 0 };
+      window.releaseFrameWatch();
+      return state;
+    }""")
+    check('hand challenge stays disabled until an observed camera frame is analysed',
+          all(waiting_state.values()), str(waiting_state))
+    pg.wait_for_function("frameNumber > 0 && hand.metrics().inferenceCount > 0 && !document.querySelector('#start').disabled",
+                         timeout=6000)
     check('hand ML mode boots with injected local model shim',
           pg.locator('#start').is_enabled() and pg.evaluate('hand.ready'))
-    pg.click('#start')
     pg.evaluate('window.twoHands=true')
-    pg.wait_for_timeout(550)
-    check('two-hand ambiguity never counts as a zone hit',pg.locator('#score').inner_text()=='0 / 3')
+    pg.click('#start')
+    pg.wait_for_function("run && document.querySelector('#status').textContent.includes('Multiple hands detected')",
+                         timeout=6000)
+    initial_inferences = pg.evaluate('hand.metrics().inferenceCount')
+    # Observe enough new ambiguous results to exceed the tracker dwell time.
+    pg.wait_for_function('(start)=>hand.metrics().inferenceCount >= start + 6',
+                         arg=initial_inferences, timeout=6000)
+    check('two-hand ambiguity never counts as a zone hit',
+          pg.evaluate('run !== null') and pg.locator('#score').inner_text()=='0 / 3')
     pg.evaluate('window.twoHands=false')
     for index,x in enumerate([.5,.17,.83],start=1):
         pg.evaluate('(x)=>window.blobX=x',x)

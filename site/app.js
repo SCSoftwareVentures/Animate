@@ -299,7 +299,7 @@ function onCameraLoop() {
       log('background_captured', { detector: 'foreground' });
     } else setStatus(`Capturing empty scene: ${state.progress} / ${state.target} fresh frames`);
   } else if (!calibrating && (reference || (detectorKind === 'foreground' && foreground.ready) ||
-      (detectorKind === 'hand' && hand.ready)) && video.readyState >= 2 && frameNumber !== processedFrame) {
+      (detectorKind === 'hand' && hand.ready)) && video.readyState >= 2 && frameNumber > 0 && frameNumber !== processedFrame) {
     processedFrame = frameNumber;
     analysedFpsCounter++;
     grabFrame();
@@ -312,6 +312,7 @@ function onCameraLoop() {
         C.locate(frame, 160, 120, reference);
     } catch (err) { cameraFailure('Local hand model inference failed. Restart the camera.', err?.name); return; }
     if (p?.skipped) { draw(lastPosition); rafId = requestAnimationFrame(onCameraLoop); return; }
+    if (detectorKind === 'hand' && $('start').disabled) $('start').disabled = false;
     const elapsed = performance.now() - started;
     detectionMs += elapsed;
     detectionCount++;
@@ -386,7 +387,6 @@ async function startCamera() {
     preventSleep();
     $('inputLabel').textContent = 'Live camera';
     $('stop').disabled = false; $('calibrate').disabled = detectorKind === 'hand';
-    if (detectorKind === 'hand') $('start').disabled = false;
     setStatus(detectorKind === 'colour' ?
       'Tap the middle of your brightly coloured object in the preview to calibrate.' :
       detectorKind === 'hand' ? 'Hand model loaded. Hold one index finger in view to control zones.' :
