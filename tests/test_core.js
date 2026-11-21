@@ -364,7 +364,7 @@ t('PRIVACY: local export projection preserves only bounded diagnostic fields', (
 t('PRIVACY: malformed local role and implausible last-day states fail closed or fall back', () => {
   const malformed = base('participant-local-restore-03', [], {role:{pretend:'Educator'}});
   assert.equal(C.sanitizeLocalRecord(malformed), null);
-  const legacy = base('participant-local-restore-04', [], {lastDay:'2027-04-01'});
+  const legacy = base('participant-local-restore-04', [], {lastDay:'2028-04-01'});
   const safe = C.sanitizeLocalRecord(legacy);
   assert(safe && !Object.hasOwn(safe,'role'), 'legacy record must not invent a role');
   assert.equal(safe.lastDay, safe.createdDay);
