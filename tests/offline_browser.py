@@ -266,6 +266,11 @@ with sync_playwright() as p:
           report['status']=='manual' and not report['complete'] and
           report['observedMs'] > 1000 and report['sampleWindows'] >= 1 and
           report['inferenceMs']['samples'] > 0 and report['inferredFrames'] > 0)
+    check('manual early finish cannot satisfy continuous camera coverage requirements',
+          report['coverage']['sufficient'] is False and
+          report['complete'] is False and
+          report['recognitionAccuracyMeasured'] is False and
+          report['commercialDemandMeasured'] is False)
     check('numeric device sample contains no participant IDs or raw image data',
           not any(k in report for k in ['userAgent','participantId','id','frameData','lastPosition']) and
           all('ANIMATE_LOCAL_DEVICE_PERFORMANCE_SAMPLE' not in json.dumps(e)
