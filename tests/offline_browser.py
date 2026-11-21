@@ -407,6 +407,28 @@ with sync_playwright() as p:
     check('foreground scene-recapture isolation does not cause browser errors',not errs,str(errs))
     c.close();b.close()
 
+    # An explicitly labelled recognition benchmark must not overlap the
+    # operator-only 60-second performance preflight.
+    b,c,pg,errs=prepare(p,camera=True,benchmark=True,debug=True)
+    enrol(pg)
+    pg.click('#camera');pg.wait_for_timeout(550)
+    pg.locator('#view').click(position={'x':145,'y':120})
+    pg.click('#deviceBenchStart')
+    pg.click('#benchStart')
+    check('recognition benchmark blocked during a 60-second performance sample',
+          'Finish the active control or performance measurement' in
+              pg.locator('#benchStatus').inner_text() and
+          pg.locator('#benchCancel').is_disabled() and
+          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='running')
+    pg.click('#deviceBenchFinish')
+    pg.click('#benchStart')
+    check('recognition benchmark can start only after performance sample ends',
+          pg.locator('#benchCancel').is_enabled() and
+          json.loads(pg.locator('#deviceBenchReport').inner_text())['status']=='manual')
+    pg.click('#benchCancel')
+    check('recognition benchmark isolation produces no JavaScript errors',not errs,str(errs))
+    c.close();b.close()
+
 bad=[name for name, ok in checks if not ok]
 print(f"\n{len(checks)-len(bad)}/{len(checks)} baseline offline browser checks passed",flush=True)
 sys.exit(1 if bad else 0)
