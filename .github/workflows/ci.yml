@@ -8,7 +8,9 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pin the tested LTS image: ubuntu-latest may move to 26.04, where Playwright's
+    # --with-deps currently requests removed font packages (CI run 44847893520).
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
