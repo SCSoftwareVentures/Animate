@@ -168,6 +168,15 @@ def main():
                       page.locator("#intro").is_visible() and
                       page.locator("#lab").is_hidden() and
                       "were deleted" in page.locator("#introerr").inner_text())
+                page.goto(url + "?debug=1", wait_until="load")
+                page.locator("#dbgbox summary").click()
+                check("WebKit diagnostic measurement is available only by explicit debug query",
+                      page.locator("#deviceBenchStart").is_visible() and
+                      json.loads(page.locator("#deviceBenchReport").inner_text())["status"] == "not_started")
+                page.click("#deviceBenchStart")
+                check("WebKit cannot fake a device sample without an actual live camera",
+                      "Measurement blocked:" in page.locator("#deviceBenchStatus").inner_text() and
+                      json.loads(page.locator("#deviceBenchReport").inner_text())["status"] == "not_started")
                 check("no unexpected third-party network requests", not external_requests)
                 check("no JavaScript errors on WebKit", not errors)
                 context.close()
@@ -177,7 +186,7 @@ def main():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
-    print("PASS %s WebKit-on-Linux preflight checks" % ("16/16 baseline" if args.baseline else "14/14"), flush=True)
+    print("PASS %s WebKit-on-Linux preflight checks" % ("18/18 baseline" if args.baseline else "16/16"), flush=True)
 
 
 if __name__ == "__main__":
