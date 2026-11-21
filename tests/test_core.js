@@ -435,4 +435,81 @@ t('v0.7 rejects hand results in the object-colour benchmark',()=>{
   assert.equal(C.sanitizeRecord(r).events[0].sample,undefined);
 });
 
+
+t('DEVICE BENCH: 60-second sample separates analysed FPS from animation loop FPS', () => {
+  const m=C.createDeviceBench();
+  assert.equal(m.snapshot(0).status,'not_started');
+  m.begin(1000,'colour');
+  for(let second=1;second<=60;second++){
+    m.noteWindow(1000+second*1000,18,60);
+    m.noteLatency(12);
+  }
+  const result=m.snapshot(61000);
+  assert.equal(result.status,'timed');assert.equal(result.complete,true);
+  assert.equal(result.observedMs,60000);
+  assert.equal(result.analysedFps.median,18);
+  assert.equal(result.animationLoopFps.median,60);
+  assert.equal(result.inferenceMs.p95,12);
+  assert.equal(result.inferredFrames,60);
+  assert.equal(result.sampleWindows,60);
+  assert.equal(m.active(),false);
+});
+t('DEVICE BENCH: camera interruption fails incomplete and cannot later turn into a pass', () => {
+  const m=C.createDeviceBench(5000);
+  m.begin(100,'foreground');
+  m.noteWindow(1100,16,59);m.noteLatency(4.5);
+  m.noteInterruption(2300);
+  m.noteWindow(6100,60,60);
+  m.noteLatency(9);
+  const result=m.snapshot(8000);
+  assert.equal(result.status,'interrupted');
+  assert.equal(result.complete,false);
+  assert.equal(result.interruptions,1);
+  assert.equal(result.observedMs,2200);
+  assert.equal(result.inferredFrames,1);
+});
+t('DEVICE BENCH: explicit end is not a completed 60-second pass', () => {
+  const m=C.createDeviceBench(2000);
+  m.begin(0,'hand');
+  m.noteLatency(9);
+  const report=m.finish(700,'manual');
+  assert.equal(report.complete,false);
+  assert.equal(report.observedMs,700);
+  assert.equal(report.detector,'hand');
+  m.reset();
+  assert.equal(m.snapshot(10000).detector,null);
+  assert.equal(m.snapshot(10000).inferredFrames,0);
+});
+t('DEVICE BENCH: invalid, oversized or nonfinite samples cannot contaminate summary', () => {
+  const m=C.createDeviceBench(3000);
+  assert.throws(()=>m.begin(-5,'colour'));
+  assert.throws(()=>m.begin(0,'unsupported'));
+  assert.throws(()=>C.createDeviceBench(0));
+  m.begin(0,'colour');
+  m.noteWindow(1000,NaN,60);
+  m.noteWindow(1000,9999,60);
+  m.noteLatency(NaN);m.noteLatency(-1);
+  m.noteWindow(1000,20,60);
+  m.noteLatency(17);
+  const r=m.finish(1000,'manual');
+  assert.equal(r.sampleWindows,1);
+  assert.equal(r.inferredFrames,1);
+  assert.equal(r.inferenceMs.max,17);
+});
+t('DEVICE BENCH: numerically bounded report cannot contain identifiers or raw frames', () => {
+  const m=C.createDeviceBench(1000);
+  m.begin(0,'colour');
+  for(let i=0;i<4500;i++)m.noteLatency(1+i%10);
+  m.noteWindow(1000,28,60);
+  const result=m.snapshot(1000);
+  assert.equal(result.inferredFrames,4500);
+  assert.equal(result.inferenceMs.samples,4096);
+  assert.equal(result.unmeasuredLatencySamples,404);
+  const serialized=JSON.stringify(result).toLowerCase();
+  for (const forbidden of ['useragent','participantid','createdat','recordid','coordinates','video frame bytes']){
+    assert(!serialized.includes('"' + forbidden + '":'));
+  }
+  assert(serialized.length < 1800);
+});
+
 console.log('\nPASS ' + passed + ' tests');
