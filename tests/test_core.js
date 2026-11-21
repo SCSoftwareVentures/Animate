@@ -666,4 +666,19 @@ t('ZONE CONTROL: output is bounded numeric-only and excludes coordinates, video 
   }
 });
 
+
+t('ZONE CONTROL: ambiguous regions are counted without becoming detected points or dwell activations', () => {
+  const z=C.createZoneControlProbe(3000);
+  z.begin(0,'absent','foreground');
+  z.add({ambiguous:true,x:.5,y:.5},100);
+  for(let i=2;i<=30;i++)z.add(null,i*100);
+  const report=z.snapshot(3000);
+  assert.equal(report.status,'timed');
+  assert.equal(report.complete,true);
+  assert.equal(report.ambiguousFrames,1);
+  assert.equal(report.detectedFrames,0);
+  assert.equal(report.undetectedFrames,30);
+  assert.equal(report.unexpectedDwellEvents,0);
+});
+
 console.log('\nPASS ' + passed + ' tests');
