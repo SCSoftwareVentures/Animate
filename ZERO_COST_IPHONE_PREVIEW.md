@@ -71,3 +71,10 @@ See [HOSTING_RESEARCH_AND_OWNER_RUNBOOK.md](HOSTING_RESEARCH_AND_OWNER_RUNBOOK.m
 The repository now prepares \`tools/build_host_canary.py\` and its tests to generate a clearly labelled, **non-ANIMATE**, no-camera/static canary ZIP for future separately authorised access-control tests. No canary or ANIMATE app was deployed; do not publish or upload either ZIP without a new owner approval. Netlify's ZIP/folder web upload instructions recommend desktop/Chromium, so actual iPhone Safari-only deployment usability remains unverified. Cloudflare Pages Access is a fallback only if production and preview hostnames are both protected. Vercel Hobby is excluded because commercial projects are not permitted under its free plan.
 
 A provider account and live HTTP/asset/header audit remain required before **any** physical iPhone camera evaluation; this update is NOT host approval.
+
+
+## STOP — verified deploy screenshot privacy bypass (21 Nov 2026)
+
+Netlify Free/Private site enforcement was verified on 64 anonymous GET/HEAD probes, but the deployment's automatically generated screenshot was **publicly retrievable from a separate CDN** and visibly contained a unique marker rendered in an authenticated private page. Private HTTP asset access is **not** proof that derived screenshots remain private. **Do not upload the ANIMATE baseline or other confidential UI to this site.** Netlify's older support states auto screenshot capture could not be disabled at the time; a Free-plan suppression control is not presently verified. A dashboard cover image does not establish screenshot URL protection.
+
+See [HOSTING_SCREENSHOT_SIDE_CHANNEL_GATE.md](HOSTING_SCREENSHOT_SIDE_CHANNEL_GATE.md) for the complete first-hand evidence, a deliberately neutral-root canary experiment (not yet externally tested), and the Cloudflare Pages + Access alternative (not yet provisioned). This gate overrides earlier text calling Netlify the preferred route until new evidence changes the outcome.
