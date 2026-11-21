@@ -605,8 +605,10 @@ function refreshDeviceBench() {
   $('deviceBenchStatus').textContent = summary.status === 'not_started' ?
     'Not measured. Start a camera first, then begin a 60-second sample.' :
     summary.status === 'running' ? 'Recording numeric measurements locally. No frames or personal identifiers are saved.' :
-    summary.complete ? '60-second measurement complete. Review before copying.' :
-    'Incomplete measurement (' + summary.status + '). Do not report this as a pass.';
+    summary.complete ? '60-second continuous camera sample recorded. This is NOT proof of recognition accuracy or demand.' :
+    summary.status === 'insufficient_coverage' ?
+      'INSUFFICIENT DATA: missing or frozen analysed frames, sparse windows or a sampling gap. Repeat this measurement.' :
+      'Incomplete measurement (' + summary.status + '). Do not report this as a pass.';
   $('deviceBenchStart').disabled = deviceBench.active();
   $('deviceBenchFinish').disabled = !deviceBench.active();
   $('deviceBenchReport').textContent = JSON.stringify(summary, null, 2);
