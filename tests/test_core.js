@@ -726,4 +726,55 @@ t('ZONE COVERAGE: an early frame burst cannot hide sparse later seconds', () => 
 });
 
 
+t('OPERATOR PACKET: self-declarations and full commit SHA are required before any trial', () => {
+  const p=C.createOperatorPacketRecorder();
+  assert.throws(()=>p.packet());
+  assert.throws(()=>p.begin('bad','colour',true,true));
+  assert.throws(()=>p.begin('a'.repeat(40),'hand',true,true));
+  assert.throws(()=>p.begin('a'.repeat(40),'colour',false,true));
+  assert.throws(()=>p.begin('a'.repeat(40),'colour',true,false));
+  p.begin('a'.repeat(40),'colour',true,true);
+  assert.equal(p.method(),'colour');
+  assert.throws(()=>p.begin('b'.repeat(40),'colour',true,true));
+  const out=p.packet();
+  assert.equal(out.deviceClaim,'self-reported-physical-iphone');
+  assert.deepEqual(out.performanceTrials,[]);
+  p.reset();
+  assert.equal(p.active(),false);
+});
+t('OPERATOR PACKET: only enumerated report fields survive; forbidden personal data blocked', () => {
+  const p=C.createOperatorPacketRecorder();
+  p.begin('b'.repeat(40),'colour',true,true);
+  const b=C.createDeviceBench();
+  b.begin(0,'colour');b.noteLatency(10);b.noteWindow(1000,15,55);
+  const report=b.finish(1000,'manual');
+  p.add('performance','ordinary',report);
+  assert.equal(p.packet().performanceTrials[0].report.status,'manual');
+  assert.equal(p.summary().incompletePerformance,1);
+  assert.equal(p.packet().performanceTrials[0].report.inferredFrames,1);
+  assert(!JSON.stringify(p.packet()).includes('participant'));
+  assert.throws(()=>p.add('performance','ordinary',{...report,participantId:'secret'}));
+  assert.throws(()=>p.add('performance','ordinary',{...report,frameData:'secret'}));
+  assert.throws(()=>p.add('performance','unexpected',report));
+  assert.throws(()=>p.add('zone','ordinary',report));
+  assert.equal(p.summary().performanceTrials,1);
+});
+t('OPERATOR PACKET: all zone attempts, including interrupted or absent, stay in RAM', () => {
+  const p=C.createOperatorPacketRecorder();
+  p.begin('c'.repeat(40),'foreground',true,true);
+  const z=C.createZoneControlProbe(10000);
+  z.begin(0,'absent','foreground');
+  for(let i=1;i<=20;i++)z.add(null,i*100);
+  const r=z.finish(2000,'manual');
+  p.add('zone','dim',r);
+  assert.equal(p.summary().zoneTrials,1);
+  assert.equal(p.summary().incompleteZone,1);
+  assert.equal(p.packet().zoneTrials[0].report.expectedCondition,'absent');
+  const cloned=p.packet();cloned.zoneTrials[0].report.undetectedFrames=9999;
+  assert.equal(p.packet().zoneTrials[0].report.undetectedFrames,20);
+  assert.throws(()=>p.add('zone','dim',{...r,sessionId:'secret'}));
+  p.reset();
+  assert.equal(p.summary().zoneTrials,0);
+});
+
 console.log('\nPASS ' + passed + ' tests');

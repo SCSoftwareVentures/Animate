@@ -71,6 +71,10 @@ const tracker = C.createZoneTracker();
 const probe = C.createRecognitionProbe();
 const deviceBench = C.createDeviceBench();
 const zoneControl = C.createZoneControlProbe();
+const packetRecorder = C.createOperatorPacketRecorder();
+let packetDevicePending = false, packetZonePending = false;
+let packetDeviceLighting = null, packetZoneLighting = null;
+
 let probeSamples = [];
 
 function setStatus(message) {
@@ -641,6 +645,45 @@ function showAggregate() {
     privacy: 'Ledger loaded only in memory. Never commit participant exports or ledger to a public repository.'
   }, null, 2);
 }
+function refreshPacketSummary(message) {
+  if (!DEBUG) return;
+  const s = packetRecorder.summary();
+  $('packetBegin').disabled = s.configured;
+  $('packetCommit').disabled = s.configured;
+  $('packetPhysical').disabled = s.configured;
+  $('packetRegistered').disabled = s.configured;
+  $('packetExport').disabled = !s.configured || (!s.performanceTrials && !s.zoneTrials);
+  $('packetCopy').disabled = $('packetExport').disabled;
+  $('packetReset').disabled = !s.configured;
+  $('packetSummary').textContent = JSON.stringify(s, null, 2);
+  if (message) $('packetStatus').textContent = message;
+}
+
+function recordPacketTrial(kind, report) {
+  if (!packetRecorder.active()) return;
+  const isDevice = kind === 'performance';
+  if (isDevice ? !packetDevicePending : !packetZonePending) return;
+  if (report.status === 'not_started' || report.status === 'running') return;
+  const light = isDevice ? packetDeviceLighting : packetZoneLighting;
+  if (isDevice) packetDevicePending = false;
+  else packetZonePending = false;
+  try {
+    packetRecorder.add(kind, light, report);
+    refreshPacketSummary('Trial recorded locally (including failures). Export before leaving Safari.');
+  } catch (error) {
+    refreshPacketSummary('Packet capture rejected: ' + String(error?.message || error));
+  }
+}
+
+function allowPacketMethod() {
+  if (packetRecorder.active() && packetRecorder.method() !== detectorKind) {
+    refreshPacketSummary('Method mismatch: this packet is registered for ' +
+      packetRecorder.method() + '. Reset before switching methods.');
+    return false;
+  }
+  return true;
+}
+
 function refreshZoneControl() {
   if (!DEBUG) return;
   const summary = zoneControl.snapshot(performance.now());
@@ -656,6 +699,7 @@ function refreshZoneControl() {
       'INSUFFICIENT COVERAGE: frames, elapsed time or continuity were inadequate. Repeat this control.' :
       'Incomplete control (' + summary.status + '). Do not count as completed evidence.';
   $('zoneControlReport').textContent = JSON.stringify(summary, null, 2);
+  recordPacketTrial('zone', summary);
 }
 
 function refreshDeviceBench() {
@@ -671,6 +715,7 @@ function refreshDeviceBench() {
   $('deviceBenchStart').disabled = deviceBench.active();
   $('deviceBenchFinish').disabled = !deviceBench.active();
   $('deviceBenchReport').textContent = JSON.stringify(summary, null, 2);
+  recordPacketTrial('performance', summary);
 }
 
 function updateDiagnostics(fps = 0, renderFps = 0) {
@@ -794,6 +839,8 @@ $('reset').addEventListener('click', () => {
   stopCamera();
   deviceBench.reset(); refreshDeviceBench();
   zoneControl.reset(); refreshZoneControl();
+  packetRecorder.reset(); packetDevicePending = false; packetZonePending = false;
+  refreshPacketSummary('Operator packet discarded from memory.');
   let deletion = { ok: false, removed: 0, failed: 1 };
   try { deletion = C.deleteLocalResearchData(localStorage); } catch (_) { /* Local storage can be blocked. */ }
   record = null;
@@ -835,6 +882,51 @@ if (DEBUG) {
   $('dbgbox').hidden = false;
   refreshDeviceBench();
   refreshZoneControl();
+  refreshPacketSummary();
+  $('packetBegin').addEventListener('click', () => {
+    try {
+      packetRecorder.begin($('packetCommit').value.trim(), $('detector').value,
+        $('packetPhysical').checked, $('packetRegistered').checked);
+      refreshPacketSummary('Packet configured. Keep the chosen method and record all attempts.');
+    } catch (error) {
+      refreshPacketSummary('Packet blocked: ' + String(error?.message || error));
+    }
+  });
+  $('packetReset').addEventListener('click', () => {
+    if (!confirm('Discard all unsaved operator evidence in memory?')) return;
+    packetRecorder.reset(); packetDevicePending = false; packetZonePending = false;
+    refreshPacketSummary('Operator packet discarded. Previously exported copies are unaffected.');
+  });
+  function exportPacket() {
+    if (packetDevicePending || packetZonePending) throw Error('Finish the active trial before export');
+    const packet = packetRecorder.packet();
+    if (!packet.performanceTrials.length && !packet.zoneTrials.length) {
+      throw Error('No finalised trials are available');
+    }
+    return JSON.stringify(packet, null, 2);
+  }
+  $('packetExport').addEventListener('click', () => {
+    try {
+      const content = exportPacket();
+      const url = URL.createObjectURL(new Blob([content], {type:'application/json'}));
+      const a = document.createElement('a');
+      a.href = url; a.download = 'animate-operator-proxy-unverified.json';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 60000);
+      refreshPacketSummary('Private JSON download requested. Check Safari Downloads; no upload occurred.');
+    } catch (error) {
+      refreshPacketSummary('Export blocked: ' + String(error?.message || error));
+    }
+  });
+  $('packetCopy').addEventListener('click', async () => {
+    try {
+      const content = exportPacket();
+      await navigator.clipboard.writeText(content);
+      refreshPacketSummary('Packet copied by your explicit action. Do not paste into a public issue.');
+    } catch (error) {
+      refreshPacketSummary('Copy unavailable. Use Export instead, or check permissions.');
+    }
+  });
   $('zoneControlStart').addEventListener('click', () => {
     if (!stream || input !== 'camera' || interrupted || stale || calibrating ||
         backgroundCapture || probe.active || (run && !run.done) ||
@@ -844,6 +936,10 @@ if (DEBUG) {
       $('zoneControlStatus').textContent =
         'Control blocked: enable and calibrate a fresh live camera, with no active challenge.';
       return;
+    }
+    if (!allowPacketMethod()) return;
+    if (packetRecorder.active()) {
+      packetZonePending = true; packetZoneLighting = $('packetLight').value;
     }
     zoneControl.begin(performance.now(), $('zoneControlExpected').value, detectorKind);
     refreshZoneControl();
@@ -872,6 +968,10 @@ if (DEBUG) {
       $('deviceBenchStatus').textContent =
         'Measurement blocked: enable a live camera and analyse fresh frames first.';
       return;
+    }
+    if (!allowPacketMethod()) return;
+    if (packetRecorder.active()) {
+      packetDevicePending = true; packetDeviceLighting = $('packetLight').value;
     }
     deviceBench.begin(performance.now(), detectorKind);
     refreshDeviceBench();

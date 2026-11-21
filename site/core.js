@@ -683,10 +683,189 @@ function deleteLocalResearchData(storage) {
   }
 }
 
+/**
+ * Operator-only, RAM-only packaging of the existing numeric camera reports.
+ * A report packet is self-asserted, never proof of a physical device, authentic
+ * commit provenance, recognition accuracy, customer demand, or acquisition value.
+ * All report fields are checked against a closed schema to prohibit leaking
+ * unreviewed frame data, participant identifiers, or arbitrary free text.
+ */
+function createOperatorPacketRecorder() {
+  const methods = ['colour', 'foreground'];
+  const lighting = ['bright', 'ordinary', 'dim'];
+  const statuses = ['timed', 'manual', 'camera_stopped', 'interrupted', 'insufficient_coverage'];
+  const deviceFields = ['kind','build','detector','status','complete','plannedMs','observedMs',
+    'sampleWindows','coverage','analysedFps','animationLoopFps','inferenceMs','inferredFrames',
+    'unmeasuredLatencySamples','interruptions','evidenceType','recognitionAccuracyMeasured',
+    'commercialDemandMeasured','contents','limitations'];
+  const zoneFields = ['kind','build','detector','expectedCondition','evidenceType','status',
+    'complete','elapsedMs','plannedMs','coverage','analysedFrames','detectedFrames',
+    'undetectedFrames','ambiguousFrames','correctZoneFrames','wrongZoneFrames',
+    'expectedDwellEvents','unexpectedDwellEvents','independentlyVerified',
+    'userDemandMeasured','limitations'];
+  const deviceCoverage = ['requiredWindows','positiveAnalysedWindows','largestGapMs',
+    'rejectedWindows','sufficient'];
+  const zoneCoverage = ['sampledSeconds','secondsWithThreeFreshFrames','requiredSeconds',
+    'maxGapMs','rejectedSamples','adequate'];
+  const distFields = ['samples','min','median','p95','max'];
+  let settings = null, performanceTrials = [], zoneTrials = [];
+
+  const isPlain = v => v !== null && typeof v === 'object' && !Array.isArray(v) &&
+    (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
+  function keysExactly(value, fields) {
+    if (!isPlain(value)) throw Error('Unreviewed evidence fields');
+    const keys = Object.keys(value);
+    if (keys.length !== fields.length || keys.some(k => !fields.includes(k))) {
+      throw Error('Unreviewed evidence fields');
+    }
+  }
+  function numeric(value, max = 1000000) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > max) {
+      throw Error('Invalid evidence measurement');
+    }
+  }
+  function integer(value, max = 1000000) {
+    numeric(value, max);
+    if (!Number.isInteger(value)) throw Error('Invalid evidence count');
+  }
+  function distribution(d, max) {
+    keysExactly(d, distFields);
+    integer(d.samples, 4096);
+    const values = [d.min,d.median,d.p95,d.max];
+    if (!d.samples) {
+      if (values.some(v => v !== null)) throw Error('Empty distribution is contradictory');
+    } else {
+      values.forEach(v => numeric(v,max));
+      if (values.some((v,i) => i > 0 && v < values[i-1])) throw Error('Contradictory distribution');
+    }
+  }
+  function validateReport(kind, r) {
+    const isDevice = kind === 'performance';
+    if (!isDevice && kind !== 'zone') throw Error('Unknown evidence type');
+    keysExactly(r, isDevice ? deviceFields : zoneFields);
+    if (r.build !== BUILD || r.detector !== settings.detector ||
+        !statuses.includes(r.status) || typeof r.complete !== 'boolean' ||
+        r.complete !== (r.status === 'timed')) throw Error('Unreviewed evidence version or status');
+    if (isDevice) {
+      if (r.kind !== 'ANIMATE_LOCAL_DEVICE_PERFORMANCE_SAMPLE' ||
+          r.evidenceType !== 'UNVERIFIED_LOCAL_PERFORMANCE_PROXY' ||
+          r.recognitionAccuracyMeasured !== false || r.commercialDemandMeasured !== false ||
+          r.contents !== 'Numeric performance only. No video, coordinates, IDs, user agent or network upload.' ||
+          r.limitations !== 'Duration alone cannot pass: requires 80% observed and positive analysed windows, inference calls and no sampling gaps over 2.5 seconds. This does not establish sensor FPS, detection accuracy, battery, thermals, real-device provenance or commercial demand.') {
+        throw Error('Unreviewed evidence provenance or disclaimer');
+      }
+      keysExactly(r.coverage, deviceCoverage);
+      for (const k of ['plannedMs','observedMs','sampleWindows','inferredFrames',
+        'unmeasuredLatencySamples','interruptions']) integer(r[k]);
+      for (const k of ['requiredWindows','positiveAnalysedWindows','rejectedWindows']) integer(r.coverage[k]);
+      numeric(r.coverage.largestGapMs);
+      if (typeof r.coverage.sufficient !== 'boolean' || r.plannedMs !== 60000 ||
+          r.coverage.requiredWindows !== 48 ||
+          r.coverage.positiveAnalysedWindows > r.sampleWindows) {
+        throw Error('Invalid camera evidence coverage');
+      }
+      distribution(r.analysedFps, 240);
+      distribution(r.animationLoopFps, 240);
+      distribution(r.inferenceMs, 120000);
+      if (r.sampleWindows !== r.analysedFps.samples ||
+          r.sampleWindows !== r.animationLoopFps.samples ||
+          r.inferenceMs.samples + r.unmeasuredLatencySamples !== r.inferredFrames) {
+        throw Error('Contradictory sample denominators');
+      }
+      if (r.complete && (!r.coverage.sufficient || r.observedMs !== 60000 ||
+          r.sampleWindows < 48 || r.coverage.positiveAnalysedWindows < 48 ||
+          r.inferredFrames < 48 || r.interruptions !== 0)) {
+        throw Error('Unsubstantiated complete camera sample');
+      }
+    } else {
+      if (r.kind !== 'ANIMATE_SELF_LABELLED_ZONE_CONTROL' ||
+          r.evidenceType !== 'OPERATOR_LABELLED_PROXY_NOT_VERIFIED_GROUND_TRUTH' ||
+          r.independentlyVerified !== false || r.userDemandMeasured !== false ||
+          r.limitations !== 'Requires three analysed frames in each of 80% of seconds. One manually labelled static condition. Dwell events are proxy activations, not observed task completions. An absent-labelled false alarm is an operator-reported proxy, not independently verified accuracy.' ||
+          !['absent','left','middle','right'].includes(r.expectedCondition)) {
+        throw Error('Unreviewed zone evidence provenance');
+      }
+      keysExactly(r.coverage,zoneCoverage);
+      for (const k of ['plannedMs','elapsedMs','analysedFrames','detectedFrames',
+        'undetectedFrames','ambiguousFrames','correctZoneFrames','wrongZoneFrames',
+        'expectedDwellEvents','unexpectedDwellEvents']) integer(r[k],100000);
+      for (const k of ['sampledSeconds','secondsWithThreeFreshFrames','requiredSeconds','rejectedSamples']) {
+        integer(r.coverage[k],100000);
+      }
+      numeric(r.coverage.maxGapMs,10000);
+      if (typeof r.coverage.adequate !== 'boolean' || r.plannedMs !== 10000 ||
+          r.coverage.requiredSeconds !== 8 ||
+          r.analysedFrames !== r.detectedFrames + r.undetectedFrames ||
+          r.ambiguousFrames > r.undetectedFrames ||
+          r.expectedDwellEvents + r.unexpectedDwellEvents > r.detectedFrames ||
+          r.coverage.secondsWithThreeFreshFrames > r.coverage.sampledSeconds ||
+          r.analysedFrames < r.coverage.secondsWithThreeFreshFrames * 3 ||
+          (r.expectedCondition === 'absent' &&
+            (r.correctZoneFrames || r.wrongZoneFrames || r.expectedDwellEvents)) ||
+          (r.expectedCondition !== 'absent' &&
+            r.correctZoneFrames + r.wrongZoneFrames !== r.detectedFrames)) {
+        throw Error('Invalid zone evidence coverage or frame totals');
+      }
+      if (r.complete && (!r.coverage.adequate || r.elapsedMs !== 10000 ||
+          r.coverage.secondsWithThreeFreshFrames < 8)) {
+        throw Error('Unsubstantiated complete zone control');
+      }
+    }
+    // Only the exact, enumerated primitive fields survive. Invalid extra
+    // fields are rejected outright, never silently copied or transmitted.
+    return JSON.parse(JSON.stringify(r));
+  }
+  function begin(sourceCommit, detector, physicalIphoneConfirmed, registeredBeforeTesting) {
+    if (settings) throw Error('Reset the existing packet before starting another');
+    if (typeof sourceCommit !== 'string' || !/^[0-9a-f]{40}$/.test(sourceCommit) ||
+        !methods.includes(detector) || physicalIphoneConfirmed !== true ||
+        registeredBeforeTesting !== true) {
+      throw Error('A 40-character commit claim, model-free method and both operator declarations are required');
+    }
+    settings = {schema:'ANIMATE_IPHONE_OPERATOR_PACKET_V1',sourceCommit,
+      deviceClaim:'self-reported-physical-iphone',registeredBeforeTesting:true,detector};
+    return summary();
+  }
+  function active() { return !!settings; }
+  function method() { return settings?.detector ?? null; }
+  function add(kind, light, raw) {
+    if (!settings) throw Error('Begin an operator packet first');
+    if (!lighting.includes(light)) throw Error('Select an approved lighting condition');
+    const target = kind === 'performance' ? performanceTrials :
+      kind === 'zone' ? zoneTrials : null;
+    if (!target) throw Error('Unknown trial type');
+    if (target.length >= 64) throw Error('Trial limit reached; export and reset');
+    const report = validateReport(kind, raw);
+    target.push({lighting:light,report});
+    if (JSON.stringify(packet()).length > 256 * 1024) {
+      target.pop();
+      throw Error('Packet exceeds maximum allowed size');
+    }
+    return summary();
+  }
+  function packet() {
+    if (!settings) throw Error('Operator packet not started');
+    return JSON.parse(JSON.stringify({...settings, performanceTrials, zoneTrials}));
+  }
+  function summary() {
+    return {configured:active(), detector:method(), performanceTrials:performanceTrials.length,
+      zoneTrials:zoneTrials.length,
+      incompletePerformance:performanceTrials.filter(x=>!x.report.complete).length,
+      incompleteZone:zoneTrials.filter(x=>!x.report.complete).length,
+      independentDeviceVerification:false, independentAccuracyVerification:false,
+      purchaseDemandVerified:false, note:'Operator self-reported only; no automatic upload or storage.'};
+  }
+  function reset() {
+    settings = null; performanceTrials = []; zoneTrials = [];
+    return summary();
+  }
+  return {begin,active,method,add,packet,summary,reset};
+}
+
 const core = { BUILD, SCHEMA_VERSION, MAX_EVENTS, clamp, rgb2hsv, hueDist, sampleReference,
   skinLike, locate, createZoneTracker, localDay, dayDiff, modes, roles, sanitizeRecord, sanitizeLocalRecord, ledgerKey,
   recordMetrics, summarize, PROBE_FRAMES, probeColours, probeLights, probeBackgrounds,
-  probeExpected, createRecognitionProbe, calibrationCandidate, deleteLocalResearchData, createDeviceBench, createZoneControlProbe };
+  probeExpected, createRecognitionProbe, calibrationCandidate, deleteLocalResearchData, createDeviceBench, createZoneControlProbe, createOperatorPacketRecorder };
 if (typeof module !== 'undefined' && module.exports) module.exports = core;
 else root.AnimateCore = core;
 })(typeof globalThis === 'undefined' ? this : globalThis);
