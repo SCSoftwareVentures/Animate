@@ -777,4 +777,39 @@ t('OPERATOR PACKET: all zone attempts, including interrupted or absent, stay in 
   assert.equal(p.summary().zoneTrials,0);
 });
 
+
+t('OPERATOR PACKET: forged complete coverage with rejected frames or large gaps is blocked', () => {
+  const recorder=C.createOperatorPacketRecorder();
+  recorder.begin('d'.repeat(40),'colour',true,true);
+  const dev=C.createDeviceBench();
+  dev.begin(0,'colour');
+  for(let i=1;i<=60;i++) {
+    dev.noteLatency(8);
+    dev.noteWindow(i*1000,18,60);
+  }
+  const validDev=dev.snapshot(60000);
+  assert.equal(validDev.complete,true);
+  assert.throws(()=>recorder.add('performance','bright',{
+    ...validDev, coverage:{...validDev.coverage,rejectedWindows:1}
+  }));
+  assert.throws(()=>recorder.add('performance','bright',{
+    ...validDev, coverage:{...validDev.coverage,largestGapMs:2600}
+  }));
+  recorder.add('performance','bright',validDev);
+  const z=C.createZoneControlProbe();
+  z.begin(0,'absent','colour');
+  for(let i=1;i<=100;i++)z.add(null,i*100);
+  const validZone=z.snapshot(10000);
+  assert.equal(validZone.complete,true);
+  assert.throws(()=>recorder.add('zone','bright',{
+    ...validZone, coverage:{...validZone.coverage,rejectedSamples:1}
+  }));
+  assert.throws(()=>recorder.add('zone','bright',{
+    ...validZone, coverage:{...validZone.coverage,maxGapMs:2600}
+  }));
+  recorder.add('zone','bright',validZone);
+  assert.equal(recorder.summary().performanceTrials,1);
+  assert.equal(recorder.summary().zoneTrials,1);
+});
+
 console.log('\nPASS ' + passed + ' tests');

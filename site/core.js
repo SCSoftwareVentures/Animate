@@ -774,7 +774,8 @@ function createOperatorPacketRecorder() {
       }
       if (r.complete && (!r.coverage.sufficient || r.observedMs !== 60000 ||
           r.sampleWindows < 48 || r.coverage.positiveAnalysedWindows < 48 ||
-          r.inferredFrames < 48 || r.interruptions !== 0)) {
+          r.inferredFrames < 48 || r.interruptions !== 0 ||
+          r.coverage.rejectedWindows !== 0 || r.coverage.largestGapMs > 2500)) {
         throw Error('Unsubstantiated complete camera sample');
       }
     } else {
@@ -807,7 +808,8 @@ function createOperatorPacketRecorder() {
         throw Error('Invalid zone evidence coverage or frame totals');
       }
       if (r.complete && (!r.coverage.adequate || r.elapsedMs !== 10000 ||
-          r.coverage.secondsWithThreeFreshFrames < 8)) {
+          r.coverage.secondsWithThreeFreshFrames < 8 ||
+          r.coverage.rejectedSamples !== 0 || r.coverage.maxGapMs > 2500)) {
         throw Error('Unsubstantiated complete zone control');
       }
     }
