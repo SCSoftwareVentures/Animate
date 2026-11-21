@@ -5,6 +5,7 @@ A real WebKit renderer checks the site over loopback with the production CSP.
 This is NOT iOS Safari, camera hardware, trained-model inference or a real-user test.
 """
 import functools
+import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import threading
@@ -107,12 +108,38 @@ def main():
                           !JSON.stringify(result).includes('paper cards');
                       }"""))
 
+                # A browser extension, debug session or old build could have written untrusted
+                # fields into localStorage. Reload must strip those fields without losing feedback.
+                page.evaluate("""() => {
+                  const key = 'animate-validation-v07';
+                  const raw = JSON.parse(localStorage.getItem(key));
+                  raw.privateUnknown = {sessionSecret:'LOCAL_LEAK_CANARY'};
+                  raw.events[0].hiddenData = {password:'EVENT_LEAK_CANARY'};
+                  localStorage.setItem(key, JSON.stringify(raw));
+                }""")
+                page.reload(wait_until="load")
+                check("WebKit restoration strips injected fields but preserves valid feedback",
+                      page.evaluate("""() => {
+                        const raw = localStorage.getItem('animate-validation-v07');
+                        const r = JSON.parse(raw);
+                        return !!r && !raw.includes('LOCAL_LEAK_CANARY') &&
+                          !raw.includes('EVENT_LEAK_CANARY') &&
+                          r.events.some(e => e.type === 'problem_response' &&
+                            e.answer === 'I currently use paper cards.');
+                      }"""))
+
                 with page.expect_download(timeout=10000) as download_info:
                     page.click("#export")
                 download = download_info.value
                 check("WebKit downloads pseudonymous JSON only after explicit action",
                       download.suggested_filename.startswith("animate-0.7.0-") and
                       download.suggested_filename.endswith(".json"))
+                export_data = json.loads(Path(download.path()).read_text())
+                check("WebKit export keeps opted-in feedback but excludes injected storage fields",
+                      not any(key in export_data for key in ('privateUnknown', 'hiddenData')) and
+                      not any('hiddenData' in event for event in export_data['events']) and
+                      any(event.get('answer') == 'I currently use paper cards.'
+                          for event in export_data['events']))
 
                 page.on("dialog", lambda dialog: dialog.accept())
                 page.click("#reset")
@@ -136,7 +163,7 @@ def main():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
-    print("PASS 12/12 WebKit-on-Linux preflight checks", flush=True)
+    print("PASS 14/14 WebKit-on-Linux preflight checks", flush=True)
 
 
 if __name__ == "__main__":
