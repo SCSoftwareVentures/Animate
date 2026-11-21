@@ -58,6 +58,12 @@ The tool deliberately reports `deploymentApproved: false` and `physicalIphoneVer
 
 **Not yet authorised or prepared for distribution.** Requires resolved exact runtime/model notices, approved vendor bundle, integrity checks, operator permission for external hosting and the full release security review. Only then test actual fingertip tracking on physical iPhone Safari using [the bench protocol](SAFARI_DEVICE_TEST.md), recording false completions, latency, inferred FPS, reload/start failures, camera revocation, battery and thermal observations.
 
+## Optional cloud preview candidate — requires separate GitHub Codespaces approval
+
+An **iPhone-only manual Codespaces option** is now prepared in [IPHONE_CODESPACES_OPTION.md](IPHONE_CODESPACES_OPTION.md). It provides a no-ML six-file baseline using a loopback-only server behind a **GitHub private forwarded port**. The server does not start automatically and requires explicit operator flags and the verified source manifest. No Codespace, forwarding rule, account upgrade, charge, remotely reachable preview or iPhone camera session has been created by this engineering work.
+
+**Security and cost warning:** Codespaces requires a GitHub service entitlement and may charge for compute/storage. The code cannot inspect live Private port visibility, validate GitHub's authentication on the user's behalf or guarantee iOS camera compatibility. These require an owner decision and direct verification after approval. A Public port must not be used.
+
 ## Required owner decision before any external action
 
 Approval must identify **provider/account, whether access is public or authenticated, exactly which build and assets may be distributed, acceptable cost, and when access should be revoked**. The assistant must not interpret general permission to continue coding as authorisation to deploy or pay.
