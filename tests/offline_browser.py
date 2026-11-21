@@ -431,6 +431,72 @@ with sync_playwright() as p:
     check('recognition benchmark isolation produces no JavaScript errors',not errs,str(errs))
     c.close();b.close()
 
+
+    # iOS-style backgrounding must cancel camera requests even while the
+    # permission promise is unresolved, and must not disturb a newer attempt.
+    b,c,pg,errs=prepare(p,camera=True)
+    enrol(pg)
+    pg.evaluate("""() => {
+      window.pendingMedia = [];
+      navigator.mediaDevices.getUserMedia = () => new Promise(resolve => {
+        const track = {readyState:'live',stop(){this.readyState='ended';}};
+        const media = {getTracks:()=>[track], getVideoTracks:()=>[track]};
+        window.pendingMedia.push({release:()=>resolve(media),track});
+      });
+    }""")
+    pg.click('#camera')
+    check('pending camera permission has no acquired media stream yet',
+          pg.evaluate('startInProgress && stream === null && pendingMedia.length === 1'))
+    pg.evaluate("""() => {
+      Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    check('backgrounding cancels pending permission request without waiting for a stream',
+          pg.evaluate('!startInProgress && stream === null && !document.querySelector("#camera").disabled'))
+    pg.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>false})")
+    pg.click('#camera')
+    pg.evaluate('pendingMedia[0].release()')
+    pg.wait_for_function('pendingMedia[0].track.readyState === "ended"')
+    check('late permission result stops its track without unlocking newer camera request',
+          pg.evaluate('pendingMedia.length === 2 && startInProgress && stream === null && document.querySelector("#camera").disabled'))
+    pg.evaluate("window.dispatchEvent(new Event('pagehide'))")
+    pg.evaluate('pendingMedia[1].release()')
+    pg.wait_for_function('pendingMedia[1].track.readyState === "ended"')
+    check('pagehide rejects second pending permission and restores camera controls',
+          pg.evaluate('!startInProgress && stream === null && !document.querySelector("#camera").disabled'))
+    pg.click('#camera')
+    pg.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>true})")
+    pg.evaluate('pendingMedia[2].release()')
+    pg.wait_for_function('pendingMedia[2].track.readyState === "ended"')
+    check('resolved permission fails closed if page became hidden without a visibility event',
+          pg.evaluate('!startInProgress && stream === null && !document.querySelector("#camera").disabled'))
+    check('pending camera permission lifecycle has no browser exceptions',not errs,str(errs))
+    c.close();b.close()
+
+    # The second async boundary is video.play(): Safari can background a tab
+    # after permission succeeds but before playback resolves.
+    b,c,pg,errs=prepare(p,camera=True)
+    enrol(pg)
+    pg.evaluate("""() => {
+      const video = document.querySelector('#video');
+      video.play = () => new Promise(resolve => { window.resumeVideoPlay=resolve; });
+    }""")
+    pg.click('#camera')
+    pg.wait_for_function('typeof window.resumeVideoPlay === "function"')
+    check('camera is acquired but video playback remains pending',
+          pg.evaluate('startInProgress && stream !== null && input === null'))
+    pg.evaluate("""() => {
+      Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    pg.evaluate('window.resumeVideoPlay()')
+    check('backgrounded pending video playback does not resurrect a stopped camera',
+          pg.evaluate('''() => !startInProgress && stream === null && input === null &&
+            document.querySelector("#video").srcObject === null &&
+            !document.querySelector("#camera").disabled'''))
+    check('delayed video-play cancellation has no browser exceptions',not errs,str(errs))
+    c.close();b.close()
+
 bad=[name for name, ok in checks if not ok]
 print(f"\n{len(checks)-len(bad)}/{len(checks)} baseline offline browser checks passed",flush=True)
 sys.exit(1 if bad else 0)

@@ -261,6 +261,9 @@ function stopCamera() {
   }
   cancelProbe('Camera stopped: unfinished sample discarded.');
   frameWatcherGeneration++;
+  // Cancel even a pending getUserMedia()/video.play() request. A stale async
+  // finally handler must not unlock the controls of a newer camera attempt.
+  startInProgress = false;
   cancelAnimationFrame(rafId); rafId = 0;
   if (stream) {
     for (const track of stream.getTracks()) {
@@ -334,6 +337,13 @@ function markInterrupted(message) {
 }
 function onCameraLoop() {
   if (!stream) return;
+  // Some browsers throttle visibility events while transitioning to the
+  // background. Never continue analysing frames from a hidden document.
+  if (document.hidden) {
+    stopCamera();
+    setStatus('Camera paused on page background. Enable it again when visible.');
+    return;
+  }
   const video = $('video');
   const now = performance.now();
   fpsCounter++;
@@ -411,6 +421,10 @@ function onCameraLoop() {
 }
 async function startCamera() {
   if (startInProgress) return;
+  if (document.hidden) {
+    setStatus('Camera blocked while the page is hidden. Return to Safari first.');
+    return;
+  }
   detectorKind = $('detector').value;
   stopCamera();
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
@@ -425,17 +439,19 @@ async function startCamera() {
     const acquired = await navigator.mediaDevices.getUserMedia({
       audio: false, video: { facingMode: { ideal: front ? 'user' : 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } }
     });
-    if (generation !== frameWatcherGeneration) {
+    if (generation !== frameWatcherGeneration || document.hidden) {
       acquired.getTracks().forEach(track => track.stop());
+      if (generation === frameWatcherGeneration) stopCamera();
       return;
     }
     stream = acquired;
     const video = $('video'); video.srcObject = stream;
     await video.play();
     // stopCamera may run while the play() promise is pending (pagehide/visibility/user stop).
-    if (generation !== frameWatcherGeneration || stream !== acquired) {
+    if (generation !== frameWatcherGeneration || stream !== acquired || document.hidden) {
       acquired.getTracks().forEach(track => track.stop());
       if (video.srcObject === acquired) video.srcObject = null;
+      if (generation === frameWatcherGeneration && document.hidden) stopCamera();
       return;
     }
     input = 'camera'; mirror = front; calibrating = detectorKind === 'colour';
@@ -479,7 +495,14 @@ async function startCamera() {
       'Hand ML could not initialise. Verified local runtime/model assets may be missing. Colour and foreground modes remain available.' :
       (inApp() ? 'Camera may be blocked here; open in Safari.' :
       'Unable to start camera (' + (e?.name || 'error') + '). Check HTTPS and camera permissions.'), e?.name);
-  } finally { startInProgress = false; if (!stream) $('camera').disabled = false; }
+  } finally {
+    // An obsolete permission/play request may finish after a replacement
+    // camera start. Do not change the replacement's controls or in-flight flag.
+    if (generation === frameWatcherGeneration) {
+      startInProgress = false;
+      if (!stream) $('camera').disabled = false;
+    }
+  }
 }
 function calibrateAt(x, y) {
   if (input !== 'camera' || detectorKind !== 'colour' || !calibrating || interrupted || stale ||
@@ -1058,7 +1081,12 @@ window.addEventListener('error', e => { lastError = String(e.message); updateDia
 window.addEventListener('unhandledrejection', e => { lastError = String(e.reason); updateDiagnostics(); });
 window.addEventListener('pagehide', stopCamera);
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && stream) { stopCamera(); setStatus('Camera paused on interruption. Enable again to continue.'); }
+  if (document.hidden && (stream || startInProgress)) {
+    // getUserMedia can still be awaiting a permission prompt, before 'stream'
+    // exists. Revoke that in-flight generation immediately on backgrounding.
+    stopCamera();
+    setStatus('Camera paused on interruption. Enable again to continue.');
+  }
 });
 window.addEventListener('resize', resizeCanvas);
 if (window.ResizeObserver) new ResizeObserver(resizeCanvas).observe(view);
