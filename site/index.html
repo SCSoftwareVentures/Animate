@@ -88,7 +88,17 @@
     <div class="actions"><button id="share">Share test link</button><button id="export" class="primary">Export test record</button><button id="reset">Delete local record</button></div>
     <p id="recordStatus" class="fine muted" role="status"></p>
   </section>
-  <details id="dbgbox" hidden><summary>Diagnostics (?debug=1)</summary><pre id="diagnosticOutput"></pre><button id="dbgcopy">Copy diagnostics</button></details>
+  <details id="dbgbox" hidden><summary>Engineering diagnostics (?debug=1)</summary>
+    <section aria-label="Physical device performance preflight">
+      <h2>60-second camera performance sample</h2>
+      <p class="fine muted">Operator-controlled numerical measurement, held in memory only. Start a live camera first. This does not store or upload video frames, coordinates, record IDs or device identifiers. A complete sample is not proof of recognition accuracy, temperature or battery life.</p>
+      <div class="actions"><button id="deviceBenchStart">Start 60-second sample</button><button id="deviceBenchFinish" disabled>End sample</button><button id="deviceBenchCopy">Copy numeric summary</button></div>
+      <p id="deviceBenchStatus" class="fine muted" role="status">Not measured.</p>
+      <pre id="deviceBenchReport" aria-label="Anonymous camera performance measurements"></pre>
+    </section>
+    <p class="fine muted">Raw diagnostic output below includes technical browser details. Do not share it publicly.</p>
+    <pre id="diagnosticOutput"></pre><button id="dbgcopy">Copy raw diagnostics</button>
+  </details>
   <details><summary>Researcher tools — local only</summary>
     <section>
       <h2>Aggregate participant reports</h2>
