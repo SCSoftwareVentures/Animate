@@ -88,10 +88,16 @@ class PreviewHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def _member(self):
-        path = urlsplit(self.path).path
-        if path not in ROUTES:
+        # BaseHTTPRequestHandler normalises a leading "//" in self.path.
+        # Check the ORIGINAL wire request-target to reject this alias rather
+        # than accidentally turning it into an allowed asset route.
+        raw_words = self.raw_requestline.split(b" ", 2)
+        if len(raw_words) < 2 or raw_words[1].startswith(b"//"):
             return None
-        return "index.html" if path == "/" else path.lstrip("/")
+        parsed = urlsplit(self.path)
+        if parsed.scheme or parsed.netloc or parsed.path not in ROUTES:
+            return None
+        return "index.html" if parsed.path == "/" else parsed.path.lstrip("/")
 
     def translate_path(self, path):
         item = self._member()
