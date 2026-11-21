@@ -20,8 +20,17 @@ const descriptions = {
 };
 const targetsFor = { play: [1, 0, 2], create: [2, 0, 1], learn: [0, 1, 2] };
 const names = ['left', 'middle', 'right'];
-const secureId = () => globalThis.crypto?.randomUUID?.() ||
-  ('p-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+function secureId() {
+  const crypt = globalThis.crypto;
+  if (typeof crypt?.randomUUID === 'function') return crypt.randomUUID();
+  if (typeof crypt?.getRandomValues !== 'function') throw Error('Secure participant ID unavailable');
+  const bytes = crypt.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map(v => v.toString(16).padStart(2, '0')).join('');
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16),
+    hex.slice(16, 20), hex.slice(20)].join('-');
+}
 const deviceCategory = () => /iPhone/i.test(navigator.userAgent) ? 'iPhone' :
   /Android/i.test(navigator.userAgent) ? 'Android' : 'Other';
 const inApp = () => /FBAN|FBAV|Instagram|Line\/|MicroMessenger|Snapchat|TikTok|WhatsApp|GSA\//i.test(navigator.userAgent);
@@ -67,8 +76,17 @@ function setStatus(message) {
 }
 function store() {
   if (!record) return;
-  try { localStorage.setItem(STORE, JSON.stringify(record)); }
-  catch (_) { $('recordStatus').textContent = 'Storage unavailable. Export this session before closing the page.'; }
+  try {
+    const safe = C.sanitizeLocalRecord(record);
+    if (!safe) {
+      $('recordStatus').textContent = 'Local record is invalid. Do not export this session.';
+      return;
+    }
+    record = safe;
+    localStorage.setItem(STORE, JSON.stringify(safe));
+  } catch (_) {
+    $('recordStatus').textContent = 'Storage unavailable. Export this session before closing the page.';
+  }
 }
 function log(type, details = {}) {
   if (!record) return;
@@ -91,17 +109,24 @@ function showExperiment() {
 function restoreRecord() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
-    if (!saved || !C.sanitizeRecord(saved)) return;
-    record = saved;
+    if (!saved) return;
+    const safe = C.sanitizeLocalRecord(saved);
+    if (!safe) {
+      $('introerr').textContent = 'The saved record failed validation. Clear this website\'s data in Safari settings to start again.';
+      return;
+    }
+    record = safe;
     const today = C.localDay();
     if (record.lastDay !== today) {
       const days = C.dayDiff(record.createdDay, today);
       record.lastDay = today;
       if (days >= 1 && days <= 365) log('return', { days, day: today });
       else store();
-    }
+    } else store();
     showExperiment();
-  } catch (_) { /* A malformed local record must not crash the page. */ }
+  } catch (_) {
+    $('introerr').textContent = 'Unable to restore the saved record. Clear ANIMATE website data to start again.';
+  }
 }
 
 function resetChallenge() {
@@ -527,7 +552,16 @@ function startProbe() {
 }
 function exportRecord() {
   if (!record) return;
-  const out = { ...record, exportedAt: new Date().toISOString() };
+  const safe = C.sanitizeLocalRecord(record);
+  if (!safe) {
+    $('recordStatus').textContent = 'Export blocked: local record did not pass validation.';
+    return;
+  }
+  const out = { ...safe, exportedAt: new Date().toISOString() };
+  if (!C.sanitizeRecord(out)) {
+    $('recordStatus').textContent = 'Export blocked: event timestamps failed validation.';
+    return;
+  }
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -587,7 +621,13 @@ $('enter').addEventListener('click', () => {
     return;
   }
   const now = new Date();
-  record = { version: C.SCHEMA_VERSION, build: C.BUILD, id: secureId(),
+  let id;
+  try { id = secureId(); }
+  catch (_) {
+    $('introerr').textContent = 'Secure participant ID unavailable. Open ANIMATE in Safari over a trusted HTTPS connection.';
+    return;
+  }
+  record = { version: C.SCHEMA_VERSION, build: C.BUILD, id,
     created: now.toISOString(), createdDay: C.localDay(now), lastDay: C.localDay(now),
     device: deviceCategory(), role: $('role').value, events: [] };
   log('enrol'); showExperiment();

@@ -327,6 +327,50 @@ t('EVIDENCE: touch feedback and feedback preceding camera completion are not cam
   }
 });
 
+t('PRIVACY: browser restore projects unknown top-level and nested event fields away', () => {
+  const raw = base('participant-local-restore-01', [
+    start(), complete(),
+    e('problem_response', iso(3), {mode:'play', input:'camera',
+      answer:'Paper fraction cards', nested:{private:'UNEXPECTED_NESTED_SECRET'}})
+  ], {role:'Educator', lastDay:'2026-11-02'});
+  raw.unexpectedCredential = {secret:'UNEXPECTED_TOP_LEVEL_SECRET'};
+  raw.events[0].nestedHuge = {password:'UNEXPECTED_START_SECRET'};
+  const safe = C.sanitizeLocalRecord(raw);
+  assert(safe);
+  assert.equal(safe.lastDay,'2026-11-02');
+  assert.equal(safe.role,'Educator');
+  assert.equal(safe.events[2].answer,'Paper fraction cards');
+  for (const mark of ['UNEXPECTED_NESTED_SECRET','UNEXPECTED_TOP_LEVEL_SECRET','UNEXPECTED_START_SECRET'])
+    assert(!JSON.stringify(safe).includes(mark), mark);
+  assert.deepEqual(C.sanitizeLocalRecord(safe), safe, 'normalised local storage must be stable');
+  const aggregate = C.summarize([safe]);
+  assert.equal(aggregate.provisional.feedbackRespondents, 1);
+  assert(!JSON.stringify(aggregate).includes('Paper fraction cards'), 'aggregation must stay text-free');
+});
+t('PRIVACY: local export projection preserves only bounded diagnostic fields', () => {
+  const raw = base('participant-local-restore-02', [
+    e('camera_ready', iso(1), {facing:'user', detector:'colour', dangerous:'NEVER_EXPORT'}),
+    e('calibrated', iso(2), {skinLike:true, secret:'NEVER_EXPORT'}),
+    e('camera_error', iso(3), {reason:'Camera interrupted', name:'NotAllowedError',
+      privateRecord:{identifier:'NEVER_EXPORT'}})
+  ], {role:'Developer', lastDay:'2026-11-03'});
+  const safe = C.sanitizeLocalRecord(raw);
+  assert.deepEqual(safe.events[0].facing, 'user');
+  assert.equal(safe.events[1].skinLike, true);
+  assert.equal(safe.events[2].reason, 'Camera interrupted');
+  assert.equal(safe.events[2].name, 'NotAllowedError');
+  assert(!JSON.stringify({...safe,exportedAt:iso(8*24*60)}).includes('NEVER_EXPORT'));
+});
+t('PRIVACY: malformed local role and implausible last-day states fail closed or fall back', () => {
+  const malformed = base('participant-local-restore-03', [], {role:{pretend:'Educator'}});
+  assert.equal(C.sanitizeLocalRecord(malformed), null);
+  const legacy = base('participant-local-restore-04', [], {lastDay:'2028-04-01'});
+  const safe = C.sanitizeLocalRecord(legacy);
+  assert(safe && !Object.hasOwn(safe,'role'), 'legacy record must not invent a role');
+  assert.equal(safe.lastDay, safe.createdDay);
+  assert.equal(C.summarize([safe]).byRole.Unspecified.acceptedExports, 1);
+});
+
 t('PRIVACY: deletion clears all historical ANIMATE keys, preserves unrelated site data', () => {
   const data = new Map([
     ['animate-validation-v1', 'old'], ['animate-validation-v05', 'old'],
