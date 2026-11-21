@@ -166,6 +166,29 @@ t('ADVERSARIAL: nonmonotonic times, ambiguous point and invalid coordinate do no
   assert.equal(z.update({x:.5}, 1150).fired,null);
 });
 
+t('EVIDENCE: impossible Gregorian dates and noncanonical UTC timestamps are rejected', () => {
+  for (const bad of [
+    '2026-02-30T00:00:00.000Z', '2026-13-01T00:00:00.000Z',
+    '2026-11-01T24:00:00.000Z', '2026-11-01T00:00:00+00:00'
+  ]) {
+    assert.equal(C.summarize([base('participant-date01', [], { created: bad })]).acceptedRecords, 0, bad);
+  }
+  assert.equal(C.summarize([base('participant-date02', [], {createdDay:'2026-02-30'})]).acceptedRecords, 0);
+});
+t('EVIDENCE: local enrollment day must align with created UTC date', () => {
+  assert.equal(C.summarize([base('participant-date03', [], {createdDay:'2026-11-10'})]).acceptedRecords, 0);
+  assert.equal(C.summarize([base('participant-date04', [], {createdDay:'2026-10-31'})]).acceptedRecords, 1,
+    'legitimate UTC/local date-boundary offset must remain valid');
+});
+t('EVIDENCE: return-day claims inconsistent with event timestamps do not count', () => {
+  const invalid = base('participant-date05', [start(),
+    e('return', iso(24*60+1), {day:'2026-11-07', days:6})]);
+  assert.equal(C.summarize([invalid]).provisional.returned, 0);
+  const valid = base('participant-date06', [start(),
+    e('return', iso(24*60+1), {day:'2026-11-02', days:1})]);
+  assert.equal(C.summarize([valid]).provisional.returned, 1);
+});
+
 t('v0.4 probe validates manual condition labels and rejects invalid timings', () => {
   const p = C.createRecognitionProbe();
   assert.throws(() => p.start({colour:'white', light:'dim', background:'plain',expected:'present'}));
