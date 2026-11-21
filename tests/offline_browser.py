@@ -127,6 +127,29 @@ with sync_playwright() as p:
     check('no JS runtime errors in touch/import/export',not errs,str(errs))
     c.close();b.close()
 
+    # Switching away from Safari should not silently destroy a purely touch
+    # fallback challenge. Camera pagehide tests below retain the fail-closed
+    # media-track cleanup contract.
+    b,c,pg,errs=prepare(p)
+    enrol(pg)
+    pg.click('#sample')
+    pg.click('#start')
+    pg.click('#tapMiddle')
+    check('touch challenge has one correct zone before backgrounding',
+          pg.locator('#score').inner_text() == '1 / 3')
+    pg.evaluate("window.dispatchEvent(new Event('pagehide'))")
+    check('pagehide preserves touch-only mode and challenge progress',
+          pg.evaluate("input === 'touch' && stream === null && !startInProgress") and
+          pg.locator('#inputLabel').inner_text() == 'Touch fallback' and
+          pg.locator('#score').inner_text() == '1 / 3' and
+          pg.locator('#start').is_enabled())
+    pg.click('#tapLeft')
+    pg.click('#tapRight')
+    check('touch challenge completes after pagehide without camera event',
+          pg.locator('#score').inner_text() == '3 / 3' and
+          not any(e['type'] == 'camera_ready' for e in record(pg)['events']) and not errs, str(errs))
+    c.close();b.close()
+
     b,c,pg,errs=prepare(p,camera=True)
     enrol(pg)
     pg.click('#camera');pg.wait_for_timeout(500)
