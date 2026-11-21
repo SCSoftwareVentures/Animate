@@ -8,7 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from audit_hosted_preview import (
-    AuditError, Evidence, FORBIDDEN_PATHS, audit_responses,
+    AuditError, Evidence, FORBIDDEN_PATHS, ALTERNATE_PATHS, PROBE_SUFFIX, audit_responses,
     check_headers, validate_origin, validated_candidate,
 )
 from build_baseline_preview import build
@@ -43,8 +43,14 @@ def fixture(changes=None):
             return Evidence(405, HEADERS, b"")
         if path in FORBIDDEN_PATHS:
             return Evidence(404, HEADERS, b"")
+        if method == "HEAD":
+            return Evidence(403 if not authorized else 405, HEADERS, b"")
+        if path in ALTERNATE_PATHS or path.endswith(PROBE_SUFFIX):
+            return Evidence(404, HEADERS, b"")
         if not authorized:
             return Evidence(403, HEADERS, b"")
+        if path == "/":
+            return Evidence(200, HEADERS, EXPECTED["/index.html"])
         if path in EXPECTED:
             return Evidence(200, HEADERS, EXPECTED[path])
         raise AssertionError("Unexpected request " + repr(key))
@@ -60,14 +66,63 @@ class PreviewAuditTests(unittest.TestCase):
         self.assertIs(report["privacyOperatorApproved"], False)
         self.assertIs(report["physicalIphoneVerified"], False)
 
+    def test_rejects_unprotected_default_root(self):
+        changes = {("GET", "/", False): Evidence(200, HEADERS, EXPECTED["/index.html"])}
+        with self.assertRaisesRegex(AuditError, "Unauthorised or alternate request"):
+            audit_responses(EXPECTED, fixture(changes))
+
+    def test_rejects_root_rewrite_to_unreviewed_bytes(self):
+        changes = {("GET", "/", True): Evidence(200, HEADERS, b"unexpected HTML")}
+        with self.assertRaisesRegex(AuditError, "reviewed landing page"):
+            audit_responses(EXPECTED, fixture(changes))
+
+    def test_rejects_head_bypass_on_script(self):
+        changes = {("HEAD", "/app.js", False): Evidence(200, HEADERS, b"")}
+        with self.assertRaisesRegex(AuditError, "Unauthorised or alternate request"):
+            audit_responses(EXPECTED, fixture(changes))
+
+    def test_rejects_asset_query_parameter_auth_bypass(self):
+        changes = {
+            ("GET", "/app.js" + PROBE_SUFFIX, False):
+                Evidence(200, HEADERS, EXPECTED["/app.js"])
+        }
+        with self.assertRaisesRegex(AuditError, "Unauthorised or alternate request"):
+            audit_responses(EXPECTED, fixture(changes))
+
+    def test_rejects_default_document_query_bypass(self):
+        changes = {
+            ("GET", "/" + PROBE_SUFFIX, False):
+                Evidence(200, HEADERS, EXPECTED["/index.html"])
+        }
+        with self.assertRaisesRegex(AuditError, "Unauthorised or alternate request"):
+            audit_responses(EXPECTED, fixture(changes))
+
+    def test_rejects_percent_encoded_path_bypass(self):
+        changes = {
+            ("GET", "/%69ndex.html", False):
+                Evidence(200, HEADERS, EXPECTED["/index.html"])
+        }
+        with self.assertRaisesRegex(AuditError, "Unauthorised or alternate request"):
+            audit_responses(EXPECTED, fixture(changes))
+
+    def test_rejects_alias_redirect_as_unverified_access(self):
+        changes = {("GET", "/app%2Ejs", False): Evidence(302, {"location": "/login"}, b"")}
+        with self.assertRaisesRegex(AuditError, "Unauthorised or alternate request"):
+            audit_responses(EXPECTED, fixture(changes))
+
+    def test_allows_unimplemented_head_and_missing_safe_aliases(self):
+        changes = {("HEAD", "/app.js", False): Evidence(405, HEADERS, b""),
+                   ("GET", "/%69ndex.html", False): Evidence(404, HEADERS, b"")}
+        self.assertEqual(audit_responses(EXPECTED, fixture(changes))["technicalPreflight"], "PASS")
+
     def test_rejects_public_preview_with_no_authentication(self):
         changes = {("GET", "/index.html", False): Evidence(200, HEADERS, EXPECTED["/index.html"])}
-        with self.assertRaisesRegex(AuditError, "Unauthorised request"):
+        with self.assertRaisesRegex(AuditError, "Unauthorised or alternate request"):
             audit_responses(EXPECTED, fixture(changes))
 
     def test_rejects_authentication_on_html_only(self):
         changes = {("GET", "/styles.css", False): Evidence(200, HEADERS, EXPECTED["/styles.css"])}
-        with self.assertRaisesRegex(AuditError, "Unauthorised request"):
+        with self.assertRaisesRegex(AuditError, "Unauthorised or alternate request"):
             audit_responses(EXPECTED, fixture(changes))
 
     def test_rejects_auth_redirect_as_unverified_not_access_proof(self):

@@ -79,3 +79,9 @@ Approval must identify **provider/account, whether access is public or authentic
 - Physical iPhone recognition and demand: **no recorded test evidence**.
 
 [Integration and release gates](INTEGRATION_AND_RELEASE_GATES.md) · [Runtime rights evidence](HAND_ML_ASSET_GATE.md)
+
+## Hosted-preview access-control bypass probes (engineering gate)
+
+A protected `/index.html` is **not** proof that `/` is protected. Reverse proxies, static hosting rewrites, CDNs and per-path access rules can differ. The owner-gated `tools/audit_hosted_preview.py` now requires an authenticated `/` to match the exact reviewed index and rejects unauthenticated successful or redirected requests for the root, all six named assets, HEAD requests, bounded query variants and selected percent-encoded/path-normalised aliases. The checks are offline simulated in CI and are **not** currently run against a real host.
+
+This is a deliberately bounded preflight: a passing test would not certify all possible CDN edge nodes, Unicode/path decoding, arbitrary query strings, cache rules or access revocation. A future host must undergo a separate owner-approved live assessment of the provider's authenticating boundary and account/billing terms. Do not publish the no-ML ZIP to an unauthenticated site just to test these probes.

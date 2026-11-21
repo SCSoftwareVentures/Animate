@@ -32,6 +32,14 @@ FORBIDDEN_PATHS = MODEL_PATHS + (
     "/MANIFEST.json", "/.env", "/research-ledger.csv",
 )
 MAX_RESPONSE = 2 * 1024 * 1024
+# Access controls must apply to the default document and alternate URL forms,
+# not just the named six-file manifest. These are bounded probes, NOT a proof
+# against every possible CDN rewrite, parser normalisation or cached route.
+ROOT_PATH = "/"
+PROBE_SUFFIX = "?animate_access_probe=1"
+ALTERNATE_PATHS = (
+    "/%69ndex.html", "/app%2Ejs", "/styles%2Ecss", "/./app.js",
+)
 REQUIRED_POLICY = ("default-src 'none'", "script-src 'self'",
                    "connect-src 'self'", "frame-ancestors 'none'")
 
@@ -145,12 +153,24 @@ def audit_responses(expected, fetch):
     require(set(expected) == {"/" + name for name in SITE_FILES},
             "Expected files must match the exact six-file site inventory")
 
-    # Verify that access control covers every static file, not only /index.html.
+    # The browser's default landing URL is "/", not necessarily /index.html.
+    # A proxy can protect the named files but accidentally expose "/" or query
+    # and percent-encoded variants. Fail closed on any unauthenticated 2xx/3xx.
+    def unauthenticated_denial(method, path, may_be_missing=False):
+        denied = fetch(method, path, False)
+        allowed = (401, 403, 404, 405) if method == "HEAD" else (
+            (400, 401, 403, 404) if may_be_missing else (401, 403))
+        require(denied.status in allowed,
+                "Unauthorised or alternate request exposed or redirected: "
+                + method + " " + path)
+        require(not any(denied.body == content for content in expected.values()) and
+                b"ANIMATE v0.7" not in denied.body,
+                "Unauthorised response disclosed reviewed application bytes: " + path)
+
     for path in sorted(expected):
-        denied = fetch("GET", path, False)
-        require(denied.status in (401, 403), "Unauthorised request exposed or redirected: " + path)
-        require(not denied.body or b"ANIMATE v0.7" not in denied.body,
-                "Unauthorised response disclosed application content: " + path)
+        unauthenticated_denial("GET", path)
+        # Some static servers disallow HEAD entirely (405); no 200 is allowed.
+        unauthenticated_denial("HEAD", path)
 
         granted = fetch("GET", path, True)
         require(granted.status == 200, "Authenticated static file unavailable: " + path)
@@ -158,6 +178,20 @@ def audit_responses(expected, fetch):
                 hashlib.sha256(granted.body).digest() == hashlib.sha256(expected[path]).digest(),
                 "Hosted content differs from reviewed candidate: " + path)
         check_headers(granted, path)
+
+    unauthenticated_denial("GET", ROOT_PATH)
+    unauthenticated_denial("HEAD", ROOT_PATH)
+    root = fetch("GET", ROOT_PATH, True)
+    require(root.status == 200 and root.body == expected["/index.html"],
+            "Authenticated root is not the reviewed landing page")
+    check_headers(root, ROOT_PATH)
+
+    # Query-string and path-normalisation bypass probes. 404 / 400 is safe for
+    # absent aliases; redirections, public bytes or an unauthorised 200 are not.
+    for path in (ROOT_PATH,) + tuple(sorted(expected)):
+        unauthenticated_denial("GET", path + PROBE_SUFFIX, may_be_missing=True)
+    for path in ALTERNATE_PATHS:
+        unauthenticated_denial("GET", path, may_be_missing=True)
 
     for path in FORBIDDEN_PATHS:
         for authorized in (False, True):
@@ -171,14 +205,16 @@ def audit_responses(expected, fetch):
     return {
         "technicalPreflight": "PASS",
         "checkedStaticFiles": len(expected),
-        "accessControl": "Verified on all six static assets, with supplied credentials",
+        "accessControl": "Checked six static assets, root, HEAD and bounded alias probes with supplied credentials",
+        "alternateAccessProbes": "No unauthorised successful or redirected responses in bounded request variants",
         "canonicalSensitivePaths": "Denied in both authenticated and unauthenticated sessions",
         "deploymentApproved": False,
         "privacyOperatorApproved": False,
         "physicalIphoneVerified": False,
-        "limitations": ("A successful server-response audit does not verify hosting logs, "
-                        "DNS/identity operations, revocation, browser camera behaviour, "
-                        "legally approved privacy wording or model redistribution rights."),
+        "limitations": ("Bounded request probes cannot prove every reverse-proxy, CDN, "
+                        "encoded path, query variant or edge-IP configuration is private. "
+                        "This audit does not verify hosting logs, DNS/identity operations, "
+                        "revocation, browser camera behaviour, privacy wording or model rights."),
     }
 
 
@@ -220,8 +256,10 @@ def make_network_fetch(host, cookie, pinned_ip):
     require(bool(cookie) and "\r" not in cookie and "\n" not in cookie and
             len(cookie) <= 4096, "Approved cookie must be supplied via environment")
     def fetch(method, path, authorized):
-        require(method in ("GET", "POST") and path.startswith("/") and
-                "?" not in path and "#" not in path, "Unexpected audit HTTP request")
+        require(method in ("GET", "HEAD", "POST") and path.startswith("/") and
+                not path.startswith("//") and "#" not in path and
+                path.count("?") <= 1 and "\r" not in path and "\n" not in path,
+                "Unexpected audit HTTP request")
         conn = PinnedHTTPSConnection(host, pinned_ip)
         headers = {"Accept": "text/html,application/javascript,text/css,*/*",
                    "User-Agent": "ANIMATE-private-preview-audit/1",
