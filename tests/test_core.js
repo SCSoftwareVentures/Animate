@@ -512,4 +512,63 @@ t('DEVICE BENCH: numerically bounded report cannot contain identifiers or raw fr
   assert(serialized.length < 1800);
 });
 
+
+t('DEVICE COVERAGE: one late window cannot masquerade as a complete minute', () => {
+  const m=C.createDeviceBench();
+  m.begin(1000,'colour');m.noteLatency(3);m.noteWindow(61000,30,60);
+  const r=m.snapshot(61000);
+  assert.equal(r.status,'insufficient_coverage');
+  assert.equal(r.complete,false);
+  assert.equal(r.coverage.sufficient,false);
+  assert.equal(r.coverage.largestGapMs,60000);
+});
+t('DEVICE COVERAGE: 60 animation windows with no analysed frames cannot pass', () => {
+  const m=C.createDeviceBench();m.begin(0,'foreground');
+  for(let second=1;second<=60;second++)m.noteWindow(second*1000,0,60);
+  const r=m.snapshot(60000);
+  assert.equal(r.status,'insufficient_coverage');
+  assert.equal(r.sampleWindows,60);
+  assert.equal(r.inferredFrames,0);
+  assert.equal(r.coverage.positiveAnalysedWindows,0);
+  assert.equal(r.coverage.sufficient,false);
+});
+t('DEVICE COVERAGE: intermittent zero-throughput periods prevent claiming sustained camera performance', () => {
+  const m=C.createDeviceBench();m.begin(0,'colour');
+  for(let second=1;second<=60;second++){
+    if(second<=45)m.noteLatency(2);
+    m.noteWindow(second*1000,second<=45?18:0,60);
+  }
+  const r=m.snapshot(60000);
+  assert.equal(r.coverage.requiredWindows,48);
+  assert.equal(r.coverage.positiveAnalysedWindows,45);
+  assert.equal(r.status,'insufficient_coverage');
+});
+t('DEVICE COVERAGE: a five-second sampling gap invalidates an otherwise busy minute', () => {
+  const m=C.createDeviceBench();m.begin(0,'colour');
+  for(let second=1;second<=59;second++){
+    if(second>=30 && second<=33)continue;
+    m.noteLatency(1);
+    m.noteWindow(second*1000,20,60);
+  }
+  m.noteLatency(1);m.noteWindow(60000,20,60);
+  const r=m.snapshot(60000);
+  assert(r.sampleWindows>=48);
+  assert(r.coverage.largestGapMs>=5000);
+  assert.equal(r.status,'insufficient_coverage');
+});
+t('DEVICE COVERAGE: nonmonotonic or forged timing invalidates the quality gate', () => {
+  const m=C.createDeviceBench(3000);m.begin(0,'hand');
+  m.noteLatency(8);m.noteWindow(1000,12,60);
+  m.noteWindow(1000,12,60);
+  m.noteLatency(8);m.noteWindow(2000,12,60);
+  m.noteLatency(8);m.noteWindow(3000,12,60);
+  const r=m.snapshot(3000);
+  assert.equal(r.coverage.rejectedWindows,1);
+  assert.equal(r.status,'insufficient_coverage');
+  assert.equal(r.complete,false);
+  assert.equal(r.recognitionAccuracyMeasured,false);
+  assert.equal(r.commercialDemandMeasured,false);
+  assert.equal(r.evidenceType,'UNVERIFIED_LOCAL_PERFORMANCE_PROXY');
+});
+
 console.log('\nPASS ' + passed + ' tests');
