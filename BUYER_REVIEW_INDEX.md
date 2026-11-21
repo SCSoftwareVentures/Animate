@@ -40,3 +40,8 @@ What can be inspected: source code, automated tests, CI logs, privacy/security c
 What cannot be promised: a hosted product, model usage rights, a signed provenance certificate, audited customer data, production support, retained user traffic, profitable economics, an IP ownership legal opinion, or a saleable price.
 
 **Budget:** no additional spending is authorised; this index requires no account, paid service, hosting, domain, research recruitment or mobile app installation.
+
+
+## Latest verification and gated follow-up
+
+The latest verified engineering candidate is draft [PR #28](https://github.com/SCSoftwareVentures/Animate/pull/28), exact commit \`59f0db2e433d99fd6f27e3fa0bb77c140c7292be\`, [CI #54 SUCCESS](https://github.com/SCSoftwareVentures/Animate/actions/runs/44883462371). Subsequent host-canary and commercial-preregistration changes live in a **separate unmerged draft successor** and require their own exact-head CI. See [HOSTING_RESEARCH_AND_OWNER_RUNBOOK.md](HOSTING_RESEARCH_AND_OWNER_RUNBOOK.md) and [COMMERCIAL_TEST_REGISTRATION.md](COMMERCIAL_TEST_REGISTRATION.md) for the next blocked evidence gates. No deployment or customer contact has been authorised.
