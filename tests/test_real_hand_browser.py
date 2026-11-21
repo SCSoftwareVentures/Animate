@@ -1,4 +1,4 @@
-"""Exercise and time the real ANIMATE hand adapter in headless Chromium.
+"""Exercise and time the real ANIMATE hand adapter in Chromium or WebKit.
 
 Use a private staged site, exact local model/runtime bytes and an optional local
 copy of Google's MediaPipe thumb_up.jpg. No asset downloads are made by this test.
@@ -205,6 +205,8 @@ def site_files(site, fixture):
 
 
 def renderer_memory(cdp):
+    if cdp is None:
+        return {'unavailable': 'WebKit does not expose Chromium CDP renderer process memory'}
     if sys.platform != 'linux':
         return {'unavailable': 'Linux /proc is required for renderer PSS'}
     processes = cdp.send('SystemInfo.getProcessInfo')['processInfo']
@@ -240,10 +242,13 @@ def check_inference(result, frames, expected_points):
 
 
 def run_trial(playwright, origin, csp_url, args, runtime_version, run_failure_checks):
-    browser = playwright.chromium.launch(executable_path=args.chromium,
-        proxy={'server': origin, 'bypass': '127.0.0.1,localhost'})
+    # The WebKit engine is a pre-device compatibility gate, not an iOS Safari surrogate.
+    options = {'proxy': {'server': origin, 'bypass': '127.0.0.1,localhost'}}
+    if args.chromium is not None:
+        options['executable_path'] = args.chromium
+    browser = getattr(playwright, args.browser).launch(**options)
     try:
-        cdp = browser.new_browser_cdp_session()
+        cdp = browser.new_browser_cdp_session() if args.browser == 'chromium' else None
         context = browser.new_context(service_workers='block')
         errors, requests, console = [], [], []
         page = open_probe(context, f'{origin}/', errors, requests, console)
@@ -251,7 +256,7 @@ def run_trial(playwright, origin, csp_url, args, runtime_version, run_failure_ch
         build = page.evaluate('useFixture => realHandProbe.prepare(useFixture)', use_fixture)
         require(build == '0.7.0', f'Unexpected diagnostics build: {build}')
         memory = {'beforeStart': renderer_memory(cdp)}
-        benchmark = {'browser': browser.version, 'build': build, 'memory': memory}
+        benchmark = {'browserEngine': args.browser, 'browserVersion': browser.version, 'build': build, 'memory': memory}
         for phase in ('cold', 'warm'):
             start = page.evaluate('realHandProbe.start()')
             require(start['ready'] and start['metrics']['ready'], f'{phase} adapter start failed')
@@ -342,11 +347,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--site', type=Path, required=True, help='Private staged site with exact local runtime and model')
     parser.add_argument('--fixture', type=Path, help='Locally cached, SHA-256-pinned Google thumb_up.jpg; otherwise use blank frames')
-    parser.add_argument('--chromium', help='Chromium executable; default is the installed Playwright browser')
+    parser.add_argument('--browser', choices=('chromium', 'webkit'), default='chromium',
+                        help='Browser engine; default chromium; WebKit is NOT iOS Safari')
+    parser.add_argument('--chromium', help='Custom Chromium executable; not supported with --browser webkit')
     parser.add_argument('--trials', type=bounded_int(1, 10), default=3)
     parser.add_argument('--frames', type=bounded_int(1, 120), default=30, help='Measured frames per cold and warm run')
     parser.add_argument('--warmup', type=bounded_int(0, 20), default=5, help='Discarded frames per run after the separately timed first frame')
     args = parser.parse_args()
+    if args.browser != 'chromium' and args.chromium:
+        parser.error('--chromium executable override is incompatible with --browser webkit')
     files = site_files(args.site, args.fixture)
     with ThreadingHTTPServer(('127.0.0.1', 0), partial(Handler, files=files)) as server:
         server.csp_probe_received = threading.Event()
@@ -365,7 +374,8 @@ def main():
 
     print(json.dumps({
         'status': 'pass', 'runtime': f'MediaPipe Tasks Vision {VERSION}', 'build': trials[0]['build'],
-        'chromium': trials[0]['browser'], 'playwright': version('playwright'), 'python': platform.python_version(),
+        'browserEngine': args.browser, 'browserVersion': trials[0]['browserVersion'],
+        'playwright': version('playwright'), 'python': platform.python_version(),
         'host': host_details(),
         'input': 'Pinned Google thumb_up.jpg, repeated' if args.fixture else 'Blank frames only; no positive inference claim',
         'frameSize': [160, 120], 'virtualTimestampFramesPerSecond': 15,
@@ -380,9 +390,9 @@ def main():
             'Cold starts use fresh browser processes with the host file cache intact. Start times exclude browser launch and fixture decoding.',
             'Warm starts replace the live detector in the same page and include its close time.',
             'Unpaced call throughput excludes capture, scheduling, UI, and the configured 55 ms throttle.',
-            'Memory is sampled aggregate renderer PSS including spare renderers, excluding browser, GPU, and network processes.',
+            'Chromium memory is sampled aggregate renderer PSS, excluding browser, GPU, and network processes; WebKit CDP memory is unavailable.',
             'Immediate post-stop memory can include allocations pending reclamation and cannot establish a leak.',
-            'Measurements are from headless Chromium on this host. Camera, accuracy, and iPhone Safari performance require device testing.',
+            'Measurements are from headless ' + args.browser + ' on this Linux host. Live camera and iPhone Safari performance require physical-device testing.',
         ],
     }, indent=2))
 
